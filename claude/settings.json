@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git submodule status:*)",
+      "Bash(make:*)",
+      "Bash(done)",
+      "Bash(python -m mypy:*)",
+      "WebSearch",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(gh issue list:*)",
+      "Bash(test:*)",
+      "Bash(gh issue view:*)",
+      "Bash(python -m pytest:*)",
+    ],
+    "defaultMode": "default"
+  },
+  "model": "sonnet",
+  "spinnerTipsEnabled": false,
+  "statusLine": {
+    "type": "command",
+    "command": "python -c \"import json,sys; d=json.load(sys.stdin); model=d.get('model',{}).get('display_name',''); total_in=d.get('context_window',{}).get('total_input_tokens',0); total_out=d.get('context_window',{}).get('total_output_tokens',0); used_pct=d.get('context_window',{}).get('used_percentage'); agent=d.get('agent',{}).get('name'); in_k=(total_in+500)//1000; out_k=(total_out+500)//1000; status=f'{model} | In:{in_k}k Out:{out_k}k'; status+=f' | Context:{used_pct}%' if used_pct else ''; status+=f' | Agent:{agent}' if agent else ''; print(status)\""
+  },
+  "autoUpdatesChannel": "latest"
+}

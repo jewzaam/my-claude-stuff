@@ -1,0 +1,1 @@
+Simple repo to store a snapshot of current claude stuff.  This is a dump, nothing fancy.  Helps with cross system and platform config sharing.
