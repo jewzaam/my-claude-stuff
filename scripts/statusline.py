@@ -13,6 +13,10 @@ Quota budgets are configurable via env vars:
   CLAUDE_5H_BUDGET     - weighted token budget for 5h window (default: 1000000)
   CLAUDE_WEEKLY_BUDGET - weighted token budget for weekly window (default: 10000000)
   Opus tokens count 5x vs Sonnet/Haiku.
+
+Session tracking (Vertex/API mode):
+  Full session data is persisted to ~/.claude/session-tracker/{date}/{uuid}.json.
+  Daily aggregate cost is shown on the statusline.
 """
 
 import json
@@ -139,8 +143,13 @@ def main():
     is_vertex = bool(os.environ.get("CLAUDE_CODE_USE_VERTEX"))
 
     if is_vertex:
+        from session_tracker import get_daily_cost, track_session
+
+        track_session(data)
         cost = (data.get("cost") or {}).get("total_cost_usd")
         parts.append(f"Session: ${cost:.2f}" if cost is not None else "Session: $0.00")
+        daily = get_daily_cost()
+        parts.append(f"Today: ${daily:.2f}")
     else:
         cache_dir = Path.home() / ".claude" / "statusline-cache"
         budget_5h = int(os.environ.get("CLAUDE_5H_BUDGET", "1000000"))
