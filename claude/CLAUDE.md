@@ -53,6 +53,21 @@ This is non-negotiable. Violating this wastes significant time on approval promp
 3. Only use `cd` if directories differ
 4. After successful `cd`, do not repeat `cd` to the same directory
 
+#### ⚠️ CRITICAL: Bash Tool — No Quoted Strings in Commands
+
+**The Bash tool rejects commands containing quoted characters. Avoid ALL use of quotes in Bash commands where possible.**
+
+This triggers on ANY quoted string in the command — flags, arguments, echo statements, separators, anything. The tool will reject the command and waste time.
+
+**Common violations (ALL rejected):**
+- `echo "---"` — use `echo ---` or just don't echo separators
+- `ls "--all"` — use `ls --all`
+- `echo "some text"` — output text directly instead of using echo
+- `command1 && echo "done"` — just run command1, skip the echo
+- Heredocs with quoted delimiters in simple cases
+
+**Rule: If a Bash command can work without quotes, remove them. If you need to output text, use direct output instead of echo.**
+
 **Other Tooling Tips:**
 - **Whitespace trimming** - Use the `trim` command to bulk-trim whitespace in a file, useful when linting errors occur related to trailing whitespace.
 
