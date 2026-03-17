@@ -171,6 +171,7 @@ def main():
     is_vertex = bool(os.environ.get("CLAUDE_CODE_USE_VERTEX"))
 
     if is_vertex:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
         from scripts.session_tracker import get_daily_cost, track_session
 
         track_session(data)
