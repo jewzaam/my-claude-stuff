@@ -137,35 +137,17 @@ class TestDetectPlatform:
         assert notify.detect_platform() == "unknown"
 
 
-class TestShellJoin:
-    def test_simple_args(self):
-        assert notify._shell_join(["echo", "hello"]) == "echo hello"
-
-    def test_args_with_spaces(self):
-        result = notify._shell_join(["code", "/path/with spaces/dir"])
-        assert "with spaces" in result
-        # Should be quoted
-        assert "'" in result or "\\" in result
-
-
-class TestBuildNotifyCmd:
+class TestBuildBody:
     def test_without_cwd(self):
         n = notify.Notification(title="Test", body="Hello", urgency="normal")
-        cmd = notify._build_notify_cmd(n)
-        assert cmd == ["notify-send", "--urgency", "normal", "Test", "Hello"]
-        assert "--action" not in cmd
-        assert "--wait" not in cmd
+        assert notify._build_body(n) == "Hello"
 
     def test_with_cwd(self):
         n = notify.Notification(
             title="Test", body="Hello", urgency="normal", cwd="/home/user/project"
         )
-        cmd = notify._build_notify_cmd(n)
-        assert "--action" in cmd
-        assert "focus=Focus" in cmd
-        assert "--wait" in cmd
-        assert cmd[-2] == "Test"
-        assert cmd[-1] == "Hello"
+        body = notify._build_body(n)
+        assert body == "[/home/user/project]\nHello"
 
 
 class TestSendLinux:
@@ -185,43 +167,17 @@ class TestSendLinux:
             args = mock_run.call_args[0][0]
             assert args[2] == "critical"
 
-    def test_with_cwd_spawns_background_process(self):
+    def test_with_cwd_includes_cwd_in_body(self):
         n = notify.Notification(
             title="Test", body="Hello", urgency="normal", cwd="/home/user/project"
         )
-        with mock.patch("notify.shutil.which", return_value="/usr/bin/code"):
-            with mock.patch("notify.subprocess.Popen") as mock_popen:
-                notify.send_linux(n)
-                mock_popen.assert_called_once()
-                call_args = mock_popen.call_args
-                cmd_list = call_args[0][0]
-                assert cmd_list[0] == "bash"
-                assert cmd_list[1] == "-c"
-                script = cmd_list[2]
-                assert "notify-send" in script
-                assert "focus" in script
-                assert "/home/user/project" in script
-                assert call_args[1]["start_new_session"] is True
-
-    def test_with_cwd_does_not_call_run(self):
-        n = notify.Notification(
-            title="Test", body="Hello", urgency="normal", cwd="/home/user/project"
-        )
-        with mock.patch("notify.shutil.which", return_value="/usr/bin/code"):
-            with mock.patch("notify.subprocess.Popen"):
-                with mock.patch("notify.subprocess.run") as mock_run:
-                    notify.send_linux(n)
-                    mock_run.assert_not_called()
-
-    def test_with_cwd_falls_back_to_code_if_which_fails(self):
-        n = notify.Notification(
-            title="Test", body="Hello", urgency="normal", cwd="/tmp"
-        )
-        with mock.patch("notify.shutil.which", return_value=None):
-            with mock.patch("notify.subprocess.Popen") as mock_popen:
-                notify.send_linux(n)
-                script = mock_popen.call_args[0][0][2]
-                assert "code" in script
+        with mock.patch("notify.subprocess.run") as mock_run:
+            notify.send_linux(n)
+            mock_run.assert_called_once()
+            args = mock_run.call_args[0][0]
+            assert args[3] == "Test"
+            assert "[/home/user/project]" in args[4]
+            assert "Hello" in args[4]
 
 
 class TestSendWindows:
