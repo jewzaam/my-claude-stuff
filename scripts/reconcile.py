@@ -190,15 +190,19 @@ def main(argv=None):
         return EXIT_ERROR
 
     changed = False
-    changed |= reconcile_claude_md(
-        args.src, args.dest, dryrun=args.dryrun, quiet=args.quiet
-    )
-    changed |= reconcile_settings(
-        args.src, args.dest, dryrun=args.dryrun, quiet=args.quiet
-    )
-    changed |= reconcile_scripts(
-        args.src.parent, args.dest, dryrun=args.dryrun, quiet=args.quiet
-    )
+    try:
+        changed |= reconcile_claude_md(
+            args.src, args.dest, dryrun=args.dryrun, quiet=args.quiet
+        )
+        changed |= reconcile_settings(
+            args.src, args.dest, dryrun=args.dryrun, quiet=args.quiet
+        )
+        changed |= reconcile_scripts(
+            args.src.parent, args.dest, dryrun=args.dryrun, quiet=args.quiet
+        )
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.error(f"reconcile failed: {exc}")
+        return EXIT_ERROR
 
     if not changed:
         if not args.quiet:

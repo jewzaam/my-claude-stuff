@@ -24,7 +24,7 @@ Model: Opus 4.6 (1M context) | Context: 7% | 5h: 11% | 1w: 4% (2m)
 | Freshness | `(2m)` = 2 min old, fresh. `(!5m)` = 5 min old, last fetch failed |
 | Session / Today | Vertex mode only — session and daily cost from stdin |
 
-Quota data is cached for 5 minutes. On API failure (429/error), stale cache is used and the freshness indicator shows `!`.
+Quota data is cached for 2 minutes. On API failure (429/error), stale cache is used and the freshness indicator shows `!`.
 
 ## Deployment
 

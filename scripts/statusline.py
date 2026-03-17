@@ -5,7 +5,7 @@
 Output: Model | Context | 5h | 1w (freshness) | Session | Today
 
 Quota utilization is fetched from the Anthropic OAuth usage API.
-Cached for 5 minutes; on 429/error, stale cache is used.
+Cached for 2 minutes; on 429/error, stale cache is used.
 Freshness indicator shows age and fetch status:
   (2m)  = data is 2 minutes old, last fetch succeeded
   (!5m) = data is 5 minutes old, last fetch failed
@@ -138,7 +138,7 @@ def main():
     is_vertex = bool(os.environ.get("CLAUDE_CODE_USE_VERTEX"))
 
     if is_vertex:
-        from session_tracker import get_daily_cost, track_session
+        from scripts.session_tracker import get_daily_cost, track_session
 
         track_session(data)
         cost = (data.get("cost") or {}).get("total_cost_usd")

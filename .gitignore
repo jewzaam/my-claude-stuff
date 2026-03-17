@@ -11,6 +11,9 @@ build/
 .coverage
 htmlcov/
 
+# Type checking
+.mypy_cache/
+
 # IDE
 .vscode/
 .idea/
