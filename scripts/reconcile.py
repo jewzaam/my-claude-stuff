@@ -64,7 +64,9 @@ def reconcile_claude_md(
         logger.warning(f"source does not exist: {src}")
         return False
 
-    if dest.exists() and src.read_text(encoding="utf-8") == dest.read_text(encoding="utf-8"):
+    if dest.exists() and src.read_text(encoding="utf-8") == dest.read_text(
+        encoding="utf-8"
+    ):
         logger.info("CLAUDE.md already in sync")
         return False
 
