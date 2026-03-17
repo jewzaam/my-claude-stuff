@@ -46,7 +46,7 @@
   "spinnerTipsEnabled": false,
   "statusLine": {
     "type": "command",
-    "command": "python3 ~/source/my-claude-stuff/scripts/statusline.py"
+    "command": "python3 ~/.claude/my-claude-stuff/scripts/statusline.py"
   },
   "autoUpdatesChannel": "latest"
 }
