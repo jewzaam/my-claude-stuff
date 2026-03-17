@@ -24,3 +24,6 @@ venv/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Temporary reformat file
+claude/settings.json.tmp
