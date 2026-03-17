@@ -34,6 +34,7 @@
       "Bash(make format:*)",
       "Bash(make typecheck:*)",
       "Bash(make coverage:*)",
+      "Bash(make help:*)",
       "Bash(python -m mypy:*)",
       "Bash(python -m pytest:*)",
       "Bash(wc:*)"
