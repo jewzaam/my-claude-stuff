@@ -88,7 +88,7 @@ def detect_platform() -> str:
 def _build_body(notification: Notification) -> str:
     """Build notification body, including cwd context if available."""
     if notification.cwd:
-        return f"[{notification.cwd}]\n{notification.body}"
+        return f"{notification.body}\n\n<i>{notification.cwd}</i>"
     return notification.body
 
 

@@ -147,7 +147,7 @@ class TestBuildBody:
             title="Test", body="Hello", urgency="normal", cwd="/home/user/project"
         )
         body = notify._build_body(n)
-        assert body == "[/home/user/project]\nHello"
+        assert body == "Hello\n\n<i>/home/user/project</i>"
 
 
 class TestSendLinux:
@@ -176,7 +176,7 @@ class TestSendLinux:
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             assert args[3] == "Test"
-            assert "[/home/user/project]" in args[4]
+            assert "/home/user/project" in args[4]
             assert "Hello" in args[4]
 
 
