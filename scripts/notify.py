@@ -13,6 +13,8 @@ Platform-aware: Linux uses notify-send, Windows is stubbed for future.
 """
 
 import json
+import shlex
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -23,6 +25,7 @@ class Notification:
     title: str
     body: str
     urgency: str  # "low", "normal", "critical"
+    cwd: str = ""
 
 
 ACTIONABLE_NOTIFICATION_TYPES = {
@@ -43,6 +46,8 @@ def parse_hook_input(data: dict) -> Notification | None:
     """Parse hook JSON and return a Notification, or None if not actionable."""
     event = data.get("hook_event_name", "")
 
+    cwd = data.get("cwd", "")
+
     if event == "Notification":
         notification_type = data.get("notification_type", "")
         template = ACTIONABLE_NOTIFICATION_TYPES.get(notification_type)
@@ -50,13 +55,16 @@ def parse_hook_input(data: dict) -> Notification | None:
             return None
         message = data.get("message", "")
         body = message if message else template.body
-        return Notification(title=template.title, body=body, urgency=template.urgency)
+        return Notification(
+            title=template.title, body=body, urgency=template.urgency, cwd=cwd
+        )
 
     if event == "Stop":
         return Notification(
             title="Task Complete",
             body="Claude Code has finished responding.",
             urgency="normal",
+            cwd=cwd,
         )
 
     return None
@@ -77,17 +85,51 @@ def detect_platform() -> str:
     return "unknown"
 
 
+def _shell_join(args: list[str]) -> str:
+    """Join command args into a shell-safe string using shlex.quote."""
+    return " ".join(shlex.quote(a) for a in args)
+
+
+def _build_notify_cmd(notification: Notification) -> list[str]:
+    """Build the notify-send command list."""
+    cmd = [
+        "notify-send",
+        "--urgency",
+        notification.urgency,
+    ]
+    if notification.cwd:
+        cmd += ["--action", "focus=Focus"]
+        cmd.append("--wait")
+    cmd += [notification.title, notification.body]
+    return cmd
+
+
 def send_linux(notification: Notification) -> None:
-    """Send notification via notify-send."""
-    subprocess.run(
-        [
-            "notify-send",
-            "--urgency",
-            notification.urgency,
-            notification.title,
-            notification.body,
-        ],
-        check=False,
+    """Send notification via notify-send.
+
+    When cwd is set, spawns a detached background process that waits for the
+    user to click the "Focus" action, then opens VS Code at that workspace.
+    """
+    cmd = _build_notify_cmd(notification)
+
+    if not notification.cwd:
+        subprocess.run(cmd, check=False)
+        return
+
+    code_bin = shutil.which("code") or "code"
+    # Spawn detached process: notify-send --wait prints action key on click,
+    # then we open VS Code at the workspace to focus the window.
+    wrapper_script = (
+        f"action=$({_shell_join(cmd)}) && "
+        f'[ "$action" = "focus" ] && '
+        f"exec {_shell_join([code_bin, notification.cwd])}"
+    )
+    subprocess.Popen(
+        ["bash", "-c", wrapper_script],
+        start_new_session=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 
