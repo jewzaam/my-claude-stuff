@@ -18,6 +18,7 @@ import json
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass
@@ -85,21 +86,31 @@ def detect_platform() -> str:
     return "unknown"
 
 
-def _build_body(notification: Notification) -> str:
-    """Build notification body, including cwd context if available."""
+def _short_cwd(cwd: str) -> str:
+    """Shorten cwd to be relative to home directory using ~."""
+    try:
+        return str(Path(cwd).relative_to(Path.home()))
+    except ValueError:
+        return cwd
+
+
+def _app_name(notification: Notification) -> str:
+    """Build app name from cwd for notification grouping."""
     if notification.cwd:
-        return f"{notification.body}\n\n<i>{notification.cwd}</i>"
-    return notification.body
+        return f"Claude: {_short_cwd(notification.cwd)}"
+    return "Claude Code"
 
 
 def send_linux(notification: Notification) -> None:
     """Send notification via notify-send."""
     cmd = [
         "notify-send",
+        "--app-name",
+        _app_name(notification),
         "--urgency",
         notification.urgency,
         notification.title,
-        _build_body(notification),
+        notification.body,
     ]
     subprocess.run(cmd, check=False)
 
