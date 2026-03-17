@@ -17,6 +17,15 @@ def _is_blocked(path: pathlib.Path) -> bool:
     return any(resolved.startswith(str(b)) for b in BLOCKED_PATHS)
 
 
+def _guard_read_text(original):
+    def guarded(self, *args, **kwargs):
+        if _is_blocked(self):
+            raise PermissionError(f"test attempted to read from protected path: {self}")
+        return original(self, *args, **kwargs)
+
+    return guarded
+
+
 def _guard_write_text(original):
     def guarded(self, *args, **kwargs):
         if _is_blocked(self):
@@ -41,6 +50,9 @@ def block_real_config_writes(monkeypatch):
     original_write_text = pathlib.Path.write_text
     original_copy2 = __import__("shutil").copy2
 
+    original_read_text = pathlib.Path.read_text
+
+    monkeypatch.setattr(pathlib.Path, "read_text", _guard_read_text(original_read_text))
     monkeypatch.setattr(
         pathlib.Path, "write_text", _guard_write_text(original_write_text)
     )

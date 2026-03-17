@@ -1,4 +1,4 @@
-.PHONY: install install-dev uninstall clean format lint typecheck test test-verbose coverage default help reconcile
+.PHONY: install install-dev install-no-deps uninstall clean format lint typecheck test test-verbose coverage default help reconcile
 
 # Normalize HOME to forward slashes (no-op on Unix, fixes Windows backslashes)
 HOME_DIR := $(subst \,/,$(HOME))
@@ -24,6 +24,9 @@ install: $(PYTHON)  ## Install package
 
 install-dev: $(PYTHON)  ## Install in editable mode with dev deps
 	$(PYTHON) -m pip install -e ".[dev]"
+
+install-no-deps: $(PYTHON)  ## Install in editable mode without dependencies
+	$(PYTHON) -m pip install -e . --no-deps
 
 uninstall:  ## Uninstall package
 	$(PYTHON) -m pip uninstall -y my-claude-stuff
