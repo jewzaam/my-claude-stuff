@@ -64,7 +64,7 @@ def reconcile_claude_md(
         logger.warning(f"source does not exist: {src}")
         return False
 
-    if dest.exists() and src.read_text() == dest.read_text():
+    if dest.exists() and src.read_text(encoding="utf-8") == dest.read_text(encoding="utf-8"):
         logger.info("CLAUDE.md already in sync")
         return False
 
@@ -92,10 +92,10 @@ def reconcile_settings(
         logger.warning(f"source does not exist: {src}")
         return False
 
-    src_data = json.loads(src.read_text())
+    src_data = json.loads(src.read_text(encoding="utf-8"))
 
     if dest.exists():
-        dest_data = json.loads(dest.read_text())
+        dest_data = json.loads(dest.read_text(encoding="utf-8"))
     else:
         dest_data = {}
 
@@ -112,11 +112,49 @@ def reconcile_settings(
         print(merged_text, end="")
     else:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(merged_text)
+        dest.write_text(merged_text, encoding="utf-8")
         if not quiet:
             print(f"Merged: {src} -> {dest}")
 
     return True
+
+
+def reconcile_scripts(
+    repo_dir: Path,
+    dest_dir: Path,
+    *,
+    dryrun: bool = False,
+    quiet: bool = False,
+) -> bool:
+    """Copy scripts/ from repo into dest_dir/my-claude-stuff/scripts/."""
+    src_scripts = repo_dir / "scripts"
+    dest_scripts = dest_dir / "my-claude-stuff" / "scripts"
+
+    if not src_scripts.is_dir():
+        logger.warning(f"source scripts dir not found: {src_scripts}")
+        return False
+
+    changed = False
+    for src_file in sorted(src_scripts.glob("*.py")):
+        dest_file = dest_scripts / src_file.name
+        try:
+            if dest_file.exists() and src_file.read_text(
+                encoding="utf-8"
+            ) == dest_file.read_text(encoding="utf-8"):
+                continue
+        except OSError:
+            pass
+
+        changed = True
+        if dryrun:
+            print(f"Would copy: {src_file} -> {dest_file}")
+        else:
+            dest_scripts.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, dest_file)
+            if not quiet:
+                print(f"Copied: {src_file} -> {dest_file}")
+
+    return changed
 
 
 def parse_args(argv=None):
@@ -155,6 +193,9 @@ def main(argv=None):
     )
     changed |= reconcile_settings(
         args.src, args.dest, dryrun=args.dryrun, quiet=args.quiet
+    )
+    changed |= reconcile_scripts(
+        args.src.parent, args.dest, dryrun=args.dryrun, quiet=args.quiet
     )
 
     if not changed:
