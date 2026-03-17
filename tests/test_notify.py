@@ -159,7 +159,9 @@ class TestAppName:
     def test_with_cwd(self):
         home = str(Path.home())
         n = notify.Notification(
-            title="Test", body="Hello", urgency="normal",
+            title="Test",
+            body="Hello",
+            urgency="normal",
             cwd=f"{home}/source/project",
         )
         assert notify._app_name(n) == "Claude: source/project"
@@ -178,8 +180,13 @@ class TestSendLinux:
             notify.send_linux(n)
             mock_run.assert_called_once_with(
                 [
-                    "notify-send", "--app-name", "Claude Code",
-                    "--urgency", "normal", "Test", "Hello",
+                    "notify-send",
+                    "--app-name",
+                    "Claude Code",
+                    "--urgency",
+                    "normal",
+                    "Test",
+                    "Hello",
                 ],
                 check=False,
             )
@@ -194,7 +201,9 @@ class TestSendLinux:
     def test_with_cwd_sets_app_name(self):
         home = str(Path.home())
         n = notify.Notification(
-            title="Task Complete", body="Done.", urgency="normal",
+            title="Task Complete",
+            body="Done.",
+            urgency="normal",
             cwd=f"{home}/source/project",
         )
         with mock.patch("notify.subprocess.run") as mock_run:
