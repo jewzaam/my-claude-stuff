@@ -1,6 +1,36 @@
 {
+  "autoUpdatesChannel": "latest",
+  "enabledPlugins": {
+    "atlassian@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "git@ai-helpers": true,
+    "jira@ai-helpers": true,
+    "security-guidance@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true
+  },
   "permissions": {
     "allow": [
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh search:*)",
+      "Bash(git submodule status:*)",
+      "Bash(ls:*)",
+      "Bash(make check:*)",
+      "Bash(make coverage:*)",
+      "Bash(make format:*)",
+      "Bash(make help:*)",
+      "Bash(make lint:*)",
+      "Bash(make test:*)",
+      "Bash(make typecheck:*)",
+      "Bash(python -m mypy:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(wc:*)",
+      "WebSearch",
       "mcp__atlassian__atlassianUserInfo",
       "mcp__atlassian__fetch",
       "mcp__atlassian__getAccessibleAtlassianResources",
@@ -21,34 +51,13 @@
       "mcp__atlassian__lookupJiraAccountId",
       "mcp__atlassian__search",
       "mcp__atlassian__searchConfluenceUsingCql",
-      "mcp__atlassian__searchJiraIssuesUsingJql",
-      "WebSearch",
-      "Bash(gh issue list:*)",
-      "Bash(gh issue view:*)",
-      "Bash(gh search:*)",
-      "Bash(git submodule status:*)",
-      "Bash(ls:*)",
-      "Bash(make check:*)",
-      "Bash(make lint:*)",
-      "Bash(make test:*)",
-      "Bash(make format:*)",
-      "Bash(make typecheck:*)",
-      "Bash(make coverage:*)",
-      "Bash(make help:*)",
-      "Bash(python -m mypy:*)",
-      "Bash(python -m pytest:*)",
-      "Bash(wc:*)"
+      "mcp__atlassian__searchJiraIssuesUsingJql"
     ],
     "defaultMode": "acceptEdits"
   },
-  "enabledPlugins": {
-    "jira@ai-helpers": true,
-    "git@ai-helpers": true
-  },
   "spinnerTipsEnabled": false,
   "statusLine": {
-    "type": "command",
-    "command": "python3 ~/.claude/my-claude-stuff/scripts/statusline.py"
-  },
-  "autoUpdatesChannel": "latest"
+    "command": "python3 ~/.claude/my-claude-stuff/scripts/statusline.py",
+    "type": "command"
+  }
 }

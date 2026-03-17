@@ -38,8 +38,9 @@ clean:  ## Remove build artifacts
 	find . -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
-format: install-dev  ## Format code with black
+format: install-dev  ## Format code with black and JSON files
 	$(PYTHON) -m black scripts tests
+	jq -S 'walk(if type == "array" then sort else . end)' claude/settings.json > claude/settings.json.tmp && mv claude/settings.json.tmp claude/settings.json
 
 lint: install-dev  ## Lint with flake8
 	$(PYTHON) -m flake8 --max-line-length=88 --extend-ignore=E203,W503 scripts tests
