@@ -12,7 +12,7 @@ import time
 
 import pytest
 
-import statusline
+from scripts import statusline
 
 SAMPLE_USAGE_RESPONSE = {
     "five_hour": {
@@ -338,7 +338,7 @@ class TestMain:
         mock_tracker.get_daily_cost = lambda: 5.25
         monkeypatch.setitem(
             __import__("sys").modules,
-            "session_tracker",
+            "scripts.session_tracker",
             mock_tracker,
         )
 
@@ -366,7 +366,7 @@ class TestMain:
         mock_tracker.get_daily_cost = lambda: 0.0
         monkeypatch.setitem(
             __import__("sys").modules,
-            "session_tracker",
+            "scripts.session_tracker",
             mock_tracker,
         )
 

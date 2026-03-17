@@ -4,18 +4,17 @@
 
 import json
 import pathlib
-import sys
 
 import pytest
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "scripts"))
-from reconcile import (  # noqa: E402
+from scripts.reconcile import (
     EXIT_ERROR,
     EXIT_SUCCESS,
+    main,
     merge_settings,
     reconcile_claude_md,
+    reconcile_scripts,
     reconcile_settings,
-    main,
 )
 
 
@@ -222,6 +221,91 @@ class TestReconcileSettings:
         assert changed is False
 
 
+class TestReconcileScripts:
+    def test_copies_scripts(self, tmp_path):
+        repo_dir = tmp_path / "repo"
+        dest_dir = tmp_path / "dest"
+        scripts_dir = repo_dir / "scripts"
+        scripts_dir.mkdir(parents=True)
+        dest_dir.mkdir()
+        (scripts_dir / "foo.py").write_text("print(1)")
+        (scripts_dir / "bar.py").write_text("print(2)")
+
+        changed = reconcile_scripts(repo_dir, dest_dir)
+
+        assert changed is True
+        dest_scripts = dest_dir / "my-claude-stuff" / "scripts"
+        assert (dest_scripts / "foo.py").read_text() == "print(1)"
+        assert (dest_scripts / "bar.py").read_text() == "print(2)"
+
+    def test_skips_identical_files(self, tmp_path):
+        repo_dir = tmp_path / "repo"
+        dest_dir = tmp_path / "dest"
+        scripts_dir = repo_dir / "scripts"
+        scripts_dir.mkdir(parents=True)
+        dest_scripts = dest_dir / "my-claude-stuff" / "scripts"
+        dest_scripts.mkdir(parents=True)
+        (scripts_dir / "same.py").write_text("same")
+        (dest_scripts / "same.py").write_text("same")
+
+        changed = reconcile_scripts(repo_dir, dest_dir)
+
+        assert changed is False
+
+    def test_overwrites_changed_files(self, tmp_path):
+        repo_dir = tmp_path / "repo"
+        dest_dir = tmp_path / "dest"
+        scripts_dir = repo_dir / "scripts"
+        scripts_dir.mkdir(parents=True)
+        dest_scripts = dest_dir / "my-claude-stuff" / "scripts"
+        dest_scripts.mkdir(parents=True)
+        (scripts_dir / "mod.py").write_text("new")
+        (dest_scripts / "mod.py").write_text("old")
+
+        changed = reconcile_scripts(repo_dir, dest_dir)
+
+        assert changed is True
+        assert (dest_scripts / "mod.py").read_text() == "new"
+
+    def test_dryrun_does_not_write(self, tmp_path):
+        repo_dir = tmp_path / "repo"
+        dest_dir = tmp_path / "dest"
+        scripts_dir = repo_dir / "scripts"
+        scripts_dir.mkdir(parents=True)
+        dest_dir.mkdir()
+        (scripts_dir / "new.py").write_text("content")
+
+        changed = reconcile_scripts(repo_dir, dest_dir, dryrun=True)
+
+        assert changed is True
+        assert not (dest_dir / "my-claude-stuff" / "scripts" / "new.py").exists()
+
+    def test_missing_scripts_dir(self, tmp_path):
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        dest_dir = tmp_path / "dest"
+        dest_dir.mkdir()
+
+        changed = reconcile_scripts(repo_dir, dest_dir)
+
+        assert changed is False
+
+    def test_only_copies_py_files(self, tmp_path):
+        repo_dir = tmp_path / "repo"
+        dest_dir = tmp_path / "dest"
+        scripts_dir = repo_dir / "scripts"
+        scripts_dir.mkdir(parents=True)
+        dest_dir.mkdir()
+        (scripts_dir / "good.py").write_text("ok")
+        (scripts_dir / "notes.txt").write_text("skip me")
+
+        reconcile_scripts(repo_dir, dest_dir)
+
+        dest_scripts = dest_dir / "my-claude-stuff" / "scripts"
+        assert (dest_scripts / "good.py").exists()
+        assert not (dest_scripts / "notes.txt").exists()
+
+
 class TestMain:
     def test_returns_error_when_src_missing(self, tmp_path):
         result = main([str(tmp_path / "nonexistent"), str(tmp_path / "dest")])
@@ -263,19 +347,92 @@ class TestMain:
         assert captured.out == ""
 
 
-class TestBlockRealConfigWrites:
-    """Verify the conftest guard blocks writes to real config paths."""
+class TestConfTestGuard:
+    """Verify the conftest guard blocks all I/O to protected paths.
 
-    def test_write_to_real_claude_dir_blocked(self):
-        real_path = pathlib.Path.home() / ".claude" / "test_canary.txt"
+    Every guard must block both ~/.claude and ~/.config/claude,
+    and must fail closed (block on error, never allow through).
+    """
+
+    # --- write_text ---
+
+    def test_write_text_blocked_claude_dir(self):
+        path = pathlib.Path.home() / ".claude" / "canary.txt"
         with pytest.raises(PermissionError, match="protected path"):
-            real_path.write_text("should not be written")
+            path.write_text("blocked")
 
-    def test_copy_to_real_claude_dir_blocked(self, tmp_path):
+    def test_write_text_blocked_config_claude_dir(self):
+        path = pathlib.Path.home() / ".config" / "claude" / "canary.txt"
+        with pytest.raises(PermissionError, match="protected path"):
+            path.write_text("blocked")
+
+    def test_write_text_blocked_nested_subdir(self):
+        path = pathlib.Path.home() / ".claude" / "deep" / "nested" / "f.txt"
+        with pytest.raises(PermissionError, match="protected path"):
+            path.write_text("blocked")
+
+    # --- read_text ---
+
+    def test_read_text_blocked_claude_dir(self):
+        path = pathlib.Path.home() / ".claude" / "canary.txt"
+        with pytest.raises(PermissionError, match="protected path"):
+            path.read_text()
+
+    def test_read_text_blocked_config_claude_dir(self):
+        path = pathlib.Path.home() / ".config" / "claude" / "canary.txt"
+        with pytest.raises(PermissionError, match="protected path"):
+            path.read_text()
+
+    # --- shutil.copy2 ---
+
+    def test_copy2_blocked(self, tmp_path):
         import shutil
 
         src = tmp_path / "src.txt"
         src.write_text("canary")
-        dest = pathlib.Path.home() / ".claude" / "test_canary.txt"
+        dest = pathlib.Path.home() / ".claude" / "canary.txt"
         with pytest.raises(PermissionError, match="protected path"):
             shutil.copy2(src, dest)
+
+    # --- builtins.open ---
+
+    def test_open_write_blocked_claude_dir(self):
+        path = pathlib.Path.home() / ".claude" / "canary.txt"
+        with pytest.raises(PermissionError, match="protected path"):
+            open(path, "w")
+
+    def test_open_read_blocked_claude_dir(self):
+        path = pathlib.Path.home() / ".claude" / "canary.txt"
+        with pytest.raises(PermissionError, match="protected path"):
+            open(path, "r")
+
+    def test_open_blocked_config_claude_dir(self):
+        path = pathlib.Path.home() / ".config" / "claude" / "canary.txt"
+        with pytest.raises(PermissionError, match="protected path"):
+            open(path, "r")
+
+    # --- tmp_path is allowed ---
+
+    def test_write_text_allowed_tmp_path(self, tmp_path):
+        path = tmp_path / "ok.txt"
+        path.write_text("allowed")
+        assert path.read_text() == "allowed"
+
+    def test_open_allowed_tmp_path(self, tmp_path):
+        path = tmp_path / "ok.txt"
+        with open(path, "w") as fh:
+            fh.write("allowed")
+        with open(path, "r") as fh:
+            assert fh.read() == "allowed"
+
+    # --- fail closed: _is_blocked returns True on error ---
+
+    def test_is_blocked_fails_closed(self, monkeypatch):
+        from tests.conftest import _is_blocked
+
+        # Force resolve() to raise, simulating an unresolvable path
+        def bad_resolve(self):
+            raise OSError("cannot resolve")
+
+        monkeypatch.setattr(pathlib.Path, "resolve", bad_resolve)
+        assert _is_blocked(pathlib.Path("/some/random/path")) is True

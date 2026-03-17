@@ -15,6 +15,7 @@ Layout:
 """
 
 import json
+import re
 from datetime import date
 from pathlib import Path
 
@@ -27,11 +28,15 @@ def track_session(data, base_dir=DEFAULT_DIR):
     if not session_id:
         return
 
+    # Reject session_ids that could escape the target directory
+    if not re.match(r"^[\w-]+$", session_id):
+        return
+
     today_dir = Path(base_dir) / date.today().isoformat()
     try:
         today_dir.mkdir(parents=True, exist_ok=True)
         session_file = today_dir / f"{session_id}.json"
-        with open(session_file, "w") as fh:
+        with open(session_file, "w", encoding="utf-8") as fh:
             json.dump(data, fh)
     except OSError:
         pass
@@ -48,7 +53,7 @@ def get_daily_cost(base_dir=DEFAULT_DIR):
         if not session_file.suffix == ".json":
             continue
         try:
-            with open(session_file, "r") as fh:
+            with open(session_file, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
             total += (data.get("cost") or {}).get("total_cost_usd", 0.0)
         except (json.JSONDecodeError, OSError):

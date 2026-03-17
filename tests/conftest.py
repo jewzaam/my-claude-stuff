@@ -13,8 +13,10 @@ BLOCKED_PATHS = [
 
 
 def _is_blocked(path: pathlib.Path) -> bool:
-    resolved = str(path.resolve())
-    return any(resolved.startswith(str(b)) for b in BLOCKED_PATHS)
+    try:
+        return any(path.resolve().is_relative_to(b) for b in BLOCKED_PATHS)
+    except (OSError, ValueError):
+        return True
 
 
 def _guard_read_text(original):
@@ -44,19 +46,31 @@ def _guard_copy2(original):
     return guarded
 
 
+def _guard_open(original):
+    def guarded(file, *args, **kwargs):
+        if _is_blocked(pathlib.Path(file)):
+            raise PermissionError(f"test attempted to open protected path: {file}")
+        return original(file, *args, **kwargs)
+
+    return guarded
+
+
 @pytest.fixture(autouse=True)
 def block_real_config_writes(monkeypatch):
-    """Block all writes to ~/.claude and ~/.config/claude in every test."""
-    original_write_text = pathlib.Path.write_text
-    original_copy2 = __import__("shutil").copy2
+    """Block all I/O to ~/.claude and ~/.config/claude in every test."""
+    import builtins
 
     original_read_text = pathlib.Path.read_text
+    original_write_text = pathlib.Path.write_text
+    original_copy2 = __import__("shutil").copy2
+    original_open = builtins.open
 
     monkeypatch.setattr(pathlib.Path, "read_text", _guard_read_text(original_read_text))
     monkeypatch.setattr(
         pathlib.Path, "write_text", _guard_write_text(original_write_text)
     )
     monkeypatch.setattr("shutil.copy2", _guard_copy2(original_copy2))
+    monkeypatch.setattr("builtins.open", _guard_open(original_open))
 
 
 @pytest.fixture

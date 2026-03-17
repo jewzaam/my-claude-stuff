@@ -3,14 +3,11 @@
 """Tests for scripts/session_tracker.py."""
 
 import json
-import pathlib
-import sys
 from datetime import date
 
 import pytest
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "scripts"))
-from session_tracker import get_daily_cost, track_session  # noqa: E402
+from scripts.session_tracker import get_daily_cost, track_session
 
 
 def _make_session_data(session_id="abc-123", cost_usd=1.50):
@@ -59,6 +56,16 @@ class TestTrackSession:
 
     def test_skips_missing_session_id(self, tmp_path):
         data = {"cost": {"total_cost_usd": 1.00}}
+        track_session(data, base_dir=tmp_path)
+        assert not list(tmp_path.iterdir())
+
+    def test_rejects_path_traversal(self, tmp_path):
+        data = _make_session_data(session_id="../../etc/evil")
+        track_session(data, base_dir=tmp_path)
+        assert not list(tmp_path.iterdir())
+
+    def test_rejects_slash_in_session_id(self, tmp_path):
+        data = _make_session_data(session_id="foo/bar")
         track_session(data, base_dir=tmp_path)
         assert not list(tmp_path.iterdir())
 
