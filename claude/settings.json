@@ -13,6 +13,30 @@
     "skill-creator@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true
   },
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "command": "python3 ~/.claude/my-claude-stuff/scripts/notify.py",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "python3 ~/.claude/my-claude-stuff/scripts/notify.py",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(gh issue list:*)",
