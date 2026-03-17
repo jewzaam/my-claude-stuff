@@ -28,6 +28,7 @@
       "Bash(gh search:*)",
       "Bash(git submodule status:*)",
       "Bash(ls:*)",
+      "Bash(make check:*)",
       "Bash(make lint:*)",
       "Bash(make test:*)",
       "Bash(make format:*)",

@@ -15,8 +15,14 @@ import pytest
 import statusline
 
 SAMPLE_USAGE_RESPONSE = {
-    "five_hour": {"utilization": 7.0, "resets_at": "2026-03-17T07:00:00+00:00"},
-    "seven_day": {"utilization": 4.0, "resets_at": "2026-03-22T17:00:00+00:00"},
+    "five_hour": {
+        "utilization": 7.0,
+        "resets_at": "2026-03-17T07:00:00+00:00",
+    },
+    "seven_day": {
+        "utilization": 4.0,
+        "resets_at": "2026-03-22T17:00:00+00:00",
+    },
 }
 
 SAMPLE_STDIN = {
@@ -34,6 +40,35 @@ def isolate_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(statusline, "CREDENTIALS_FILE", creds_file)
     monkeypatch.delenv("CLAUDE_CODE_USE_VERTEX", raising=False)
     return tmp_path, cache_file, creds_file
+
+
+# --- format_age ---
+
+
+class TestFormatAge:
+    def test_seconds(self):
+        assert statusline.format_age(30) == "30s"
+
+    def test_zero(self):
+        assert statusline.format_age(0) == "0s"
+
+    def test_negative_clamps(self):
+        assert statusline.format_age(-5) == "0s"
+
+    def test_minutes(self):
+        assert statusline.format_age(120) == "2m"
+
+    def test_minutes_boundary(self):
+        assert statusline.format_age(59) == "59s"
+        assert statusline.format_age(60) == "1m"
+
+    def test_hours(self):
+        assert statusline.format_age(3600) == "1h"
+        assert statusline.format_age(7200) == "2h"
+
+    def test_hours_boundary(self):
+        assert statusline.format_age(3599) == "59m"
+        assert statusline.format_age(3600) == "1h"
 
 
 # --- get_oauth_token ---
@@ -74,7 +109,6 @@ class TestFetchUsage:
         monkeypatch.setattr(statusline, "get_oauth_token", lambda: "tok")
         resp_body = json.dumps(SAMPLE_USAGE_RESPONSE).encode()
         mock_resp = io.BytesIO(resp_body)
-        mock_resp.read = mock_resp.read
 
         class FakeContext:
             def __enter__(self):
@@ -109,14 +143,21 @@ class TestFetchUsage:
 class TestGetUsage:
     def test_fresh_cache_hit(self, isolate_paths, monkeypatch):
         _, cache_file, _ = isolate_paths
-        cached = {"v": SAMPLE_USAGE_RESPONSE, "t": time.time()}
+        cache_time = time.time() - 30
+        cached = {"v": SAMPLE_USAGE_RESPONSE, "t": cache_time}
         cache_file.write_text(json.dumps(cached), encoding="utf-8")
 
         fetch_called = []
-        monkeypatch.setattr(statusline, "fetch_usage", lambda: fetch_called.append(1))
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: fetch_called.append(1),
+        )
 
-        result = statusline.get_usage()
-        assert result == SAMPLE_USAGE_RESPONSE
+        usage, age, stale = statusline.get_usage()
+        assert usage == SAMPLE_USAGE_RESPONSE
+        assert age >= 30
+        assert stale is False
         assert len(fetch_called) == 0
 
     def test_stale_cache_triggers_fetch(self, isolate_paths, monkeypatch):
@@ -125,10 +166,16 @@ class TestGetUsage:
         cached = {"v": {"old": True}, "t": stale_time}
         cache_file.write_text(json.dumps(cached), encoding="utf-8")
 
-        monkeypatch.setattr(statusline, "fetch_usage", lambda: SAMPLE_USAGE_RESPONSE)
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: SAMPLE_USAGE_RESPONSE,
+        )
 
-        result = statusline.get_usage()
-        assert result == SAMPLE_USAGE_RESPONSE
+        usage, age, stale = statusline.get_usage()
+        assert usage == SAMPLE_USAGE_RESPONSE
+        assert age == 0
+        assert stale is False
 
     def test_fetch_failure_uses_stale_cache(self, isolate_paths, monkeypatch):
         _, cache_file, _ = isolate_paths
@@ -138,16 +185,25 @@ class TestGetUsage:
 
         monkeypatch.setattr(statusline, "fetch_usage", lambda: None)
 
-        result = statusline.get_usage()
-        assert result == {"stale": True}
+        usage, age, stale = statusline.get_usage()
+        assert usage == {"stale": True}
+        assert age >= statusline.USAGE_CACHE_TTL_SECONDS
+        assert stale is True
 
     def test_no_cache_no_fetch(self, monkeypatch):
         monkeypatch.setattr(statusline, "fetch_usage", lambda: None)
-        assert statusline.get_usage() is None
+        usage, age, stale = statusline.get_usage()
+        assert usage is None
+        assert age == 0
+        assert stale is False
 
     def test_fetch_writes_cache(self, isolate_paths, monkeypatch):
         _, cache_file, _ = isolate_paths
-        monkeypatch.setattr(statusline, "fetch_usage", lambda: SAMPLE_USAGE_RESPONSE)
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: SAMPLE_USAGE_RESPONSE,
+        )
 
         statusline.get_usage()
         assert cache_file.exists()
@@ -158,24 +214,48 @@ class TestGetUsage:
         _, cache_file, _ = isolate_paths
         cache_file.write_text("{corrupt", encoding="utf-8")
 
-        monkeypatch.setattr(statusline, "fetch_usage", lambda: SAMPLE_USAGE_RESPONSE)
-        result = statusline.get_usage()
-        assert result == SAMPLE_USAGE_RESPONSE
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: SAMPLE_USAGE_RESPONSE,
+        )
+        usage, age, stale = statusline.get_usage()
+        assert usage == SAMPLE_USAGE_RESPONSE
+        assert stale is False
 
 
 # --- main ---
 
 
 class TestMain:
-    def _run_main(self, monkeypatch, capsys, stdin_data, usage=None):
-        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(stdin_data)))
-        monkeypatch.setattr(statusline, "get_usage", lambda: usage)
+    def _run_main(
+        self,
+        monkeypatch,
+        capsys,
+        stdin_data,
+        usage=None,
+        age=0,
+        stale=False,
+    ):
+        monkeypatch.setattr(
+            "sys.stdin",
+            io.StringIO(json.dumps(stdin_data)),
+        )
+        monkeypatch.setattr(
+            statusline,
+            "get_usage",
+            lambda: (usage, age, stale),
+        )
         statusline.main()
         return capsys.readouterr().out.strip()
 
     def test_invalid_stdin(self, monkeypatch, capsys):
         monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
-        monkeypatch.setattr(statusline, "get_usage", lambda: None)
+        monkeypatch.setattr(
+            statusline,
+            "get_usage",
+            lambda: (None, 0, False),
+        )
         statusline.main()
         assert capsys.readouterr().out.strip() == "Claude Code"
 
@@ -184,20 +264,48 @@ class TestMain:
         assert "Model: Opus 4.6" in output
         assert "Context: 12%" in output
 
-    def test_with_usage(self, monkeypatch, capsys):
+    def test_with_usage_fresh(self, monkeypatch, capsys):
         output = self._run_main(
             monkeypatch,
             capsys,
             SAMPLE_STDIN,
             usage=SAMPLE_USAGE_RESPONSE,
+            age=120,
+            stale=False,
         )
         assert "5h: 7%" in output
         assert "1w: 4%" in output
+        assert "(2m)" in output
+        assert "!" not in output
+
+    def test_with_usage_stale(self, monkeypatch, capsys):
+        output = self._run_main(
+            monkeypatch,
+            capsys,
+            SAMPLE_STDIN,
+            usage=SAMPLE_USAGE_RESPONSE,
+            age=600,
+            stale=True,
+        )
+        assert "5h: 7%" in output
+        assert "(!10m)" in output
+
+    def test_with_usage_just_fetched(self, monkeypatch, capsys):
+        output = self._run_main(
+            monkeypatch,
+            capsys,
+            SAMPLE_STDIN,
+            usage=SAMPLE_USAGE_RESPONSE,
+            age=0,
+            stale=False,
+        )
+        assert "(0s)" in output
 
     def test_no_usage(self, monkeypatch, capsys):
         output = self._run_main(monkeypatch, capsys, SAMPLE_STDIN, usage=None)
         assert "5h:" not in output
         assert "1w:" not in output
+        assert "(" not in output
 
     def test_no_context_window(self, monkeypatch, capsys):
         data = {"model": {"display_name": "Sonnet"}}
@@ -217,15 +325,22 @@ class TestMain:
             "session_id": "test-session",
         }
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(data)))
-        monkeypatch.setattr(statusline, "get_usage", lambda: None)
+        monkeypatch.setattr(
+            statusline,
+            "get_usage",
+            lambda: (None, 0, False),
+        )
 
-        # Mock session_tracker to avoid real file access
         import types
 
         mock_tracker = types.ModuleType("session_tracker")
         mock_tracker.track_session = lambda data: None
         mock_tracker.get_daily_cost = lambda: 5.25
-        monkeypatch.setitem(__import__("sys").modules, "session_tracker", mock_tracker)
+        monkeypatch.setitem(
+            __import__("sys").modules,
+            "session_tracker",
+            mock_tracker,
+        )
 
         statusline.main()
         output = capsys.readouterr().out.strip()
@@ -234,15 +349,26 @@ class TestMain:
 
     def test_no_cost_in_vertex(self, monkeypatch, capsys):
         monkeypatch.setenv("CLAUDE_CODE_USE_VERTEX", "1")
-        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(SAMPLE_STDIN)))
-        monkeypatch.setattr(statusline, "get_usage", lambda: None)
+        monkeypatch.setattr(
+            "sys.stdin",
+            io.StringIO(json.dumps(SAMPLE_STDIN)),
+        )
+        monkeypatch.setattr(
+            statusline,
+            "get_usage",
+            lambda: (None, 0, False),
+        )
 
         import types
 
         mock_tracker = types.ModuleType("session_tracker")
         mock_tracker.track_session = lambda data: None
         mock_tracker.get_daily_cost = lambda: 0.0
-        monkeypatch.setitem(__import__("sys").modules, "session_tracker", mock_tracker)
+        monkeypatch.setitem(
+            __import__("sys").modules,
+            "session_tracker",
+            mock_tracker,
+        )
 
         statusline.main()
         output = capsys.readouterr().out.strip()
