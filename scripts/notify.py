@@ -9,12 +9,12 @@ and sends a desktop notification for actionable events only:
   - Stop: task complete
 
 Non-actionable events (idle_prompt, auth_success) are silently ignored.
-Platform-aware: Linux uses notify-send, Windows is stubbed for future.
+Notifications include the working directory for context when running
+multiple sessions. Platform-aware: Linux uses notify-send, Windows is
+stubbed for future.
 """
 
 import json
-import shlex
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -85,52 +85,23 @@ def detect_platform() -> str:
     return "unknown"
 
 
-def _shell_join(args: list[str]) -> str:
-    """Join command args into a shell-safe string using shlex.quote."""
-    return " ".join(shlex.quote(a) for a in args)
+def _build_body(notification: Notification) -> str:
+    """Build notification body, including cwd context if available."""
+    if notification.cwd:
+        return f"[{notification.cwd}]\n{notification.body}"
+    return notification.body
 
 
-def _build_notify_cmd(notification: Notification) -> list[str]:
-    """Build the notify-send command list."""
+def send_linux(notification: Notification) -> None:
+    """Send notification via notify-send."""
     cmd = [
         "notify-send",
         "--urgency",
         notification.urgency,
+        notification.title,
+        _build_body(notification),
     ]
-    if notification.cwd:
-        cmd += ["--action", "focus=Focus"]
-        cmd.append("--wait")
-    cmd += [notification.title, notification.body]
-    return cmd
-
-
-def send_linux(notification: Notification) -> None:
-    """Send notification via notify-send.
-
-    When cwd is set, spawns a detached background process that waits for the
-    user to click the "Focus" action, then opens VS Code at that workspace.
-    """
-    cmd = _build_notify_cmd(notification)
-
-    if not notification.cwd:
-        subprocess.run(cmd, check=False)
-        return
-
-    code_bin = shutil.which("code") or "code"
-    # Spawn detached process: notify-send --wait prints action key on click,
-    # then we open VS Code at the workspace to focus the window.
-    wrapper_script = (
-        f"action=$({_shell_join(cmd)}) && "
-        f'[ "$action" = "focus" ] && '
-        f"exec {_shell_join([code_bin, notification.cwd])}"
-    )
-    subprocess.Popen(
-        ["bash", "-c", wrapper_script],
-        start_new_session=True,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    subprocess.run(cmd, check=False)
 
 
 def send_windows(notification: Notification) -> None:
