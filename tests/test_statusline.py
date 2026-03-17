@@ -42,33 +42,79 @@ def isolate_paths(tmp_path, monkeypatch):
     return tmp_path, cache_file, creds_file
 
 
-# --- format_age ---
+# --- format_duration ---
 
 
-class TestFormatAge:
-    def test_seconds(self):
-        assert statusline.format_age(30) == "30s"
-
+class TestFormatDuration:
     def test_zero(self):
-        assert statusline.format_age(0) == "0s"
+        assert statusline.format_duration(0) == "0s"
 
     def test_negative_clamps(self):
-        assert statusline.format_age(-5) == "0s"
+        assert statusline.format_duration(-5) == "0s"
 
-    def test_minutes(self):
-        assert statusline.format_age(120) == "2m"
+    def test_seconds_only(self):
+        assert statusline.format_duration(45) == "45s"
 
-    def test_minutes_boundary(self):
-        assert statusline.format_age(59) == "59s"
-        assert statusline.format_age(60) == "1m"
+    def test_minutes_seconds(self):
+        assert statusline.format_duration(90) == "1m30s"
 
-    def test_hours(self):
-        assert statusline.format_age(3600) == "1h"
-        assert statusline.format_age(7200) == "2h"
+    def test_minutes_exact(self):
+        assert statusline.format_duration(120) == "2m"
 
-    def test_hours_boundary(self):
-        assert statusline.format_age(3599) == "59m"
-        assert statusline.format_age(3600) == "1h"
+    def test_hours_minutes(self):
+        assert statusline.format_duration(3720) == "1h2m"
+
+    def test_hours_exact(self):
+        assert statusline.format_duration(7200) == "2h"
+
+    def test_days_hours(self):
+        assert statusline.format_duration(90000) == "1d1h"
+
+    def test_days_exact(self):
+        assert statusline.format_duration(86400) == "1d"
+
+    def test_days_no_minutes(self):
+        # 2 days 0 hours — should be just "2d", not "2d0h"
+        assert statusline.format_duration(172800) == "2d"
+
+    def test_multi_day(self):
+        # 4 days 12 hours
+        assert statusline.format_duration(4 * 86400 + 12 * 3600) == "4d12h"
+
+    def test_never_three_units(self):
+        # 1d 2h 30m 15s — should be "1d2h", not "1d2h30m"
+        assert statusline.format_duration(86400 + 7200 + 1800 + 15) == "1d2h"
+
+
+# --- format_remaining ---
+
+
+class TestFormatRemaining:
+    def test_none_input(self):
+        assert statusline.format_remaining(None) is None
+
+    def test_empty_string(self):
+        assert statusline.format_remaining("") is None
+
+    def test_invalid_timestamp(self):
+        assert statusline.format_remaining("not-a-date") is None
+
+    def test_past_returns_zero(self, monkeypatch):
+        assert statusline.format_remaining("2020-01-01T00:00:00+00:00") == "0s"
+
+    def test_future_timestamp(self, monkeypatch):
+        from datetime import datetime, timezone, timedelta
+
+        future = datetime.now(timezone.utc) + timedelta(hours=3, minutes=4)
+        result = statusline.format_remaining(future.isoformat())
+        assert result.startswith("3h")
+
+    def test_days_remaining(self, monkeypatch):
+        from datetime import datetime, timezone, timedelta
+
+        future = datetime.now(timezone.utc) + timedelta(days=4, hours=12)
+        result = statusline.format_remaining(future.isoformat())
+        assert result.startswith("4d")
 
 
 # --- get_oauth_token ---
@@ -265,16 +311,31 @@ class TestMain:
         assert "Context: 12%" in output
 
     def test_with_usage_fresh(self, monkeypatch, capsys):
+        from datetime import datetime, timezone, timedelta
+
+        future_5h = (
+            datetime.now(timezone.utc) + timedelta(hours=3, minutes=4)
+        ).isoformat()
+        future_1w = (
+            datetime.now(timezone.utc) + timedelta(days=4, hours=12)
+        ).isoformat()
+        usage = {
+            "five_hour": {"utilization": 7.0, "resets_at": future_5h},
+            "seven_day": {"utilization": 4.0, "resets_at": future_1w},
+        }
         output = self._run_main(
             monkeypatch,
             capsys,
             SAMPLE_STDIN,
-            usage=SAMPLE_USAGE_RESPONSE,
+            usage=usage,
             age=120,
             stale=False,
         )
-        assert "5h: 7%" in output
-        assert "1w: 4%" in output
+        # Labels should be time-remaining, not "5h"/"1w"
+        assert "7%" in output
+        assert "4%" in output
+        assert "3h" in output  # ~3h remaining for 5h bucket
+        assert "4d" in output  # ~4d remaining for weekly
         assert "(2m)" in output
         assert "!" not in output
 
@@ -287,7 +348,7 @@ class TestMain:
             age=600,
             stale=True,
         )
-        assert "5h: 7%" in output
+        assert "7%" in output
         assert "(!10m)" in output
 
     def test_with_usage_just_fetched(self, monkeypatch, capsys):
@@ -302,10 +363,28 @@ class TestMain:
         assert "(0s)" in output
 
     def test_no_usage(self, monkeypatch, capsys):
-        output = self._run_main(monkeypatch, capsys, SAMPLE_STDIN, usage=None)
-        assert "5h:" not in output
-        assert "1w:" not in output
+        output = self._run_main(
+            monkeypatch,
+            capsys,
+            SAMPLE_STDIN,
+            usage=None,
+        )
+        assert "%" not in output or "Context: 12%" in output
         assert "(" not in output
+
+    def test_missing_resets_at_uses_fallback_label(self, monkeypatch, capsys):
+        usage = {
+            "five_hour": {"utilization": 10.0},
+            "seven_day": {"utilization": 5.0},
+        }
+        output = self._run_main(
+            monkeypatch,
+            capsys,
+            SAMPLE_STDIN,
+            usage=usage,
+        )
+        assert "5h: 10%" in output
+        assert "1w: 5%" in output
 
     def test_no_context_window(self, monkeypatch, capsys):
         data = {"model": {"display_name": "Sonnet"}}
@@ -395,5 +474,6 @@ class TestMain:
             SAMPLE_STDIN,
             usage=usage,
         )
-        assert "5h:" not in output
+        # five_hour is None so should be skipped
+        # seven_day has no resets_at so falls back to "1w"
         assert "1w: 3%" in output

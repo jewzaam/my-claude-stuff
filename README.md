@@ -13,16 +13,18 @@ Claude Code configuration and statusline scripts with cross-platform support (Li
 Custom statusline for Claude Code showing:
 
 ```
-Model: Opus 4.6 (1M context) | Context: 7% | 5h: 11% | 1w: 4% (2m)
+Model: Opus 4.6 (1M context) | Context: 7% | 3h4m: 11% | 4d12h: 4% (2m)
 ```
 
 | Segment | Source |
 |---------|--------|
 | Model | Claude Code stdin |
 | Context | Claude Code stdin (context window used %) |
-| 5h / 1w | Anthropic OAuth usage API (5-hour and weekly quota) |
+| Quota | Anthropic OAuth usage API. Label is time until reset (e.g. `3h4m: 11%`) |
 | Freshness | `(2m)` = 2 min old, fresh. `(!5m)` = 5 min old, last fetch failed |
 | Session / Today | Vertex mode only — session and daily cost from stdin |
+
+Quota labels show time remaining until the limit resets, with at most 2 units of precision (`d+h`, `h+m`, `m+s`, or single unit). Falls back to `5h`/`1w` if the reset timestamp is unavailable.
 
 Quota data is cached for 2 minutes. On API failure (429/error), stale cache is used and the freshness indicator shows `!`.
 
