@@ -6,6 +6,7 @@ import io
 import json
 import pathlib
 import sys
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -137,17 +138,37 @@ class TestDetectPlatform:
         assert notify.detect_platform() == "unknown"
 
 
-class TestBuildBody:
+class TestShortCwd:
+    def test_under_home(self):
+        home = str(Path.home())
+        result = notify._short_cwd(f"{home}/source/my-project")
+        assert result == "source/my-project"
+
+    def test_outside_home(self):
+        assert notify._short_cwd("/opt/something") == "/opt/something"
+
+    def test_home_itself(self):
+        assert notify._short_cwd(str(Path.home())) == "."
+
+
+class TestAppName:
     def test_without_cwd(self):
         n = notify.Notification(title="Test", body="Hello", urgency="normal")
-        assert notify._build_body(n) == "Hello"
+        assert notify._app_name(n) == "Claude Code"
 
     def test_with_cwd(self):
+        home = str(Path.home())
         n = notify.Notification(
-            title="Test", body="Hello", urgency="normal", cwd="/home/user/project"
+            title="Test", body="Hello", urgency="normal",
+            cwd=f"{home}/source/project",
         )
-        body = notify._build_body(n)
-        assert body == "Hello\n\n<i>/home/user/project</i>"
+        assert notify._app_name(n) == "Claude: source/project"
+
+    def test_with_cwd_outside_home(self):
+        n = notify.Notification(
+            title="Test", body="Hello", urgency="normal", cwd="/opt/work"
+        )
+        assert notify._app_name(n) == "Claude: /opt/work"
 
 
 class TestSendLinux:
@@ -156,7 +177,10 @@ class TestSendLinux:
         with mock.patch("notify.subprocess.run") as mock_run:
             notify.send_linux(n)
             mock_run.assert_called_once_with(
-                ["notify-send", "--urgency", "normal", "Test", "Hello"],
+                [
+                    "notify-send", "--app-name", "Claude Code",
+                    "--urgency", "normal", "Test", "Hello",
+                ],
                 check=False,
             )
 
@@ -165,19 +189,21 @@ class TestSendLinux:
         with mock.patch("notify.subprocess.run") as mock_run:
             notify.send_linux(n)
             args = mock_run.call_args[0][0]
-            assert args[2] == "critical"
+            assert args[4] == "critical"
 
-    def test_with_cwd_includes_cwd_in_body(self):
+    def test_with_cwd_sets_app_name(self):
+        home = str(Path.home())
         n = notify.Notification(
-            title="Test", body="Hello", urgency="normal", cwd="/home/user/project"
+            title="Task Complete", body="Done.", urgency="normal",
+            cwd=f"{home}/source/project",
         )
         with mock.patch("notify.subprocess.run") as mock_run:
             notify.send_linux(n)
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
-            assert args[3] == "Test"
-            assert "/home/user/project" in args[4]
-            assert "Hello" in args[4]
+            assert args[2] == "Claude: source/project"
+            assert args[5] == "Task Complete"
+            assert args[6] == "Done."
 
 
 class TestSendWindows:
@@ -202,8 +228,8 @@ class TestMain:
                 notify.main()
                 mock_run.assert_called_once()
                 args = mock_run.call_args[0][0]
-                assert args[3] == "Approval Needed"
-                assert args[4] == "Allow?"
+                assert args[5] == "Approval Needed"
+                assert args[6] == "Allow?"
 
     def test_stop_sends_notification(self, monkeypatch):
         data = {"hook_event_name": "Stop"}
