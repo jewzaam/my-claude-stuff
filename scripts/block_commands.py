@@ -8,8 +8,13 @@ command patterns. Exits 2 to block, 0 to allow.
 Blocked commands:
   - git add
   - git push
+  - git reset
+  - git clean
+  - git branch
+  - git stash
   - sudo
   - su (standalone, not as substring)
+  - rm with recursive flags (-r, -R, --recursive)
   - make reconcile
 """
 
@@ -26,10 +31,20 @@ _FLAGS = r"(?:\s+(?:-\S+|\S+=\S+)(?:\s+\S+)?)*"
 BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+add\b"), "git add"),
     (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+push\b"), "git push"),
+    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+reset\b"), "git reset"),
+    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+clean\b"), "git clean"),
+    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+branch\b"), "git branch"),
+    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+stash\b"), "git stash"),
     (re.compile(rf"{_ENV}{_PATH}sudo\b"), "sudo"),
     (
         re.compile(rf"(?:^|&&|\|\||;|\|)\s*{_ENV}{_PATH}su\s*(?:$|\s|&&|\|\||;|\|)"),
         "su",
+    ),
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}rm\s+.*(-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)\b"
+        ),
+        "rm (recursive)",
     ),
     (re.compile(rf"{_ENV}{_PATH}make{_FLAGS}\s+reconcile\b"), "make reconcile"),
 ]
