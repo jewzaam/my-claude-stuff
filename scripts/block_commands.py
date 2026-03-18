@@ -20,15 +20,17 @@ import sys
 # Optional path prefix: /usr/bin/, /usr/local/bin/, ./bin/, env, etc.
 _PATH = r"(?:[a-zA-Z0-9_./-]*/)?"
 _ENV = r"(?:\benv\s+(?:-\S+\s+)*)?"
+# Optional flags between command and subcommand (e.g. git -C /path, make -f file)
+_FLAGS = r"(?:\s+(?:-\S+|\S+=\S+)(?:\s+\S+)?)*"
 
 BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(rf"{_ENV}{_PATH}git\s+add\b"), "git add"),
-    (re.compile(rf"{_ENV}{_PATH}git\s+push\b"), "git push"),
+    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+add\b"), "git add"),
+    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+push\b"), "git push"),
     (re.compile(rf"{_ENV}{_PATH}sudo\b"), "sudo"),
     (re.compile(
         rf"(?:^|&&|\|\||;|\|)\s*{_ENV}{_PATH}su\s*(?:$|\s|&&|\|\||;|\|)"
     ), "su"),
-    (re.compile(rf"{_ENV}{_PATH}make\s+reconcile\b"), "make reconcile"),
+    (re.compile(rf"{_ENV}{_PATH}make{_FLAGS}\s+reconcile\b"), "make reconcile"),
 ]
 
 

@@ -108,6 +108,36 @@ class TestCheckCommand:
     ) -> None:
         assert block_commands.check_command(command) == expected
 
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("git -C /some/path add foo", "git add"),
+            ("git -C /some/path push origin main", "git push"),
+            ("/usr/bin/git -C /some/path add foo", "git add"),
+            ("git --git-dir=/tmp/.git add .", "git add"),
+            ("git -c user.name=test push", "git push"),
+            ("git -C /path --work-tree=/tmp add file.txt", "git add"),
+        ],
+    )
+    def test_git_flags_before_subcommand_blocked(
+        self, command: str, expected: str
+    ) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("make -C /some/path reconcile", "make reconcile"),
+            ("make -f Makefile reconcile", "make reconcile"),
+            ("make --directory=/path reconcile", "make reconcile"),
+            ("/usr/bin/make -C /tmp reconcile", "make reconcile"),
+        ],
+    )
+    def test_make_flags_before_target_blocked(
+        self, command: str, expected: str
+    ) -> None:
+        assert block_commands.check_command(command) == expected
+
     def test_blocked_word_in_heredoc_not_matched(self) -> None:
         cmd = 'git commit -m "$(cat <<\'EOF\'\ngit add blocked\nEOF\n)"'
         assert block_commands.check_command(cmd) is None
