@@ -54,6 +54,14 @@ class TestCheckCommand:
             ("git stash list", "git stash"),
             ("git stash pop", "git stash"),
             ("git stash apply", "git stash"),
+            ("git commit --amend", "git commit (--amend/-a)"),
+            ("git commit -a", "git commit (--amend/-a)"),
+            ("git commit -am test", "git commit (--amend/-a)"),
+            ("git commit -a -m test", "git commit (--amend/-a)"),
+            ("git commit -m test -a", "git commit (--amend/-a)"),
+            ("git commit -ma test", "git commit (--amend/-a)"),
+            ("git commit -m test --amend", "git commit (--amend/-a)"),
+            ("git commit --verbose --amend", "git commit (--amend/-a)"),
         ],
     )
     def test_blocked_commands(self, command: str, expected: str) -> None:
@@ -116,6 +124,8 @@ class TestCheckCommand:
             ("/usr/bin/git clean -fd", "git clean"),
             ("/usr/bin/git branch -D foo", "git branch"),
             ("/usr/bin/git stash drop", "git stash"),
+            ("/usr/bin/git commit -a", "git commit (--amend/-a)"),
+            ("/usr/bin/git commit --amend", "git commit (--amend/-a)"),
         ],
     )
     def test_path_qualified_commands_blocked(self, command: str, expected: str) -> None:
@@ -133,6 +143,8 @@ class TestCheckCommand:
             ("env git clean -f", "git clean"),
             ("env git branch -D foo", "git branch"),
             ("env git stash clear", "git stash"),
+            ("env git commit -a", "git commit (--amend/-a)"),
+            ("env git commit --amend", "git commit (--amend/-a)"),
         ],
     )
     def test_env_prefixed_commands_blocked(self, command: str, expected: str) -> None:
@@ -151,6 +163,8 @@ class TestCheckCommand:
             ("git -C /path clean -fd", "git clean"),
             ("git -C /path branch -D foo", "git branch"),
             ("git -C /path stash drop", "git stash"),
+            ("git -C /path commit -a", "git commit (--amend/-a)"),
+            ("git -C /path commit --amend", "git commit (--amend/-a)"),
         ],
     )
     def test_git_flags_before_subcommand_blocked(
@@ -171,6 +185,11 @@ class TestCheckCommand:
         self, command: str, expected: str
     ) -> None:
         assert block_commands.check_command(command) == expected
+
+    def test_git_commit_without_append_a_allowed(self) -> None:
+        assert block_commands.check_command("git commit -m test") is None
+        assert block_commands.check_command("git commit -m fix-a-bug") is None
+        assert block_commands.check_command("git commit --message test") is None
 
     def test_blocked_word_in_heredoc_not_matched(self) -> None:
         cmd = "git commit -m \"$(cat <<'EOF'\ngit add blocked\nEOF\n)\""
