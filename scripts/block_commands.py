@@ -16,6 +16,7 @@ Blocked commands:
   - su (standalone, not as substring)
   - rm with recursive flags (-r, -R, --recursive)
   - make reconcile
+  - git commit with --amend or -a flag
 """
 
 import json
@@ -45,6 +46,12 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         "rm (recursive)",
     ),
     (re.compile(rf"{_ENV}{_PATH}make{_FLAGS}\s+reconcile\b"), "make reconcile"),
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}git{_FLAGS}\s+commit\s.*(?:--amend\b|(?<=\s)-[a-zA-Z]*a[a-zA-Z]*)(?:\s|$)"
+        ),
+        "git commit (--amend/-a)",
+    ),
 ]
 
 
