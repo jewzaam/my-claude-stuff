@@ -41,9 +41,7 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         "su",
     ),
     (
-        re.compile(
-            rf"{_ENV}{_PATH}rm\s+.*(-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)\b"
-        ),
+        re.compile(rf"{_ENV}{_PATH}rm\s+.*(-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)\b"),
         "rm (recursive)",
     ),
     (re.compile(rf"{_ENV}{_PATH}make{_FLAGS}\s+reconcile\b"), "make reconcile"),
