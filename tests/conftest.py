@@ -56,18 +56,23 @@ def _guard_open(original):
     return guarded
 
 
-BLOCKED_COMMANDS = frozenset({"notify-send"})
+def _guard_subprocess(func_name):
+    def decorator(original):
+        def guarded(*args, **kwargs):
+            cmd_args = args[0] if args else kwargs.get("args", [])
+            if isinstance(cmd_args, str):
+                cmd_desc = cmd_args
+            elif isinstance(cmd_args, (list, tuple)) and cmd_args:
+                cmd_desc = " ".join(str(a) for a in cmd_args)
+            else:
+                cmd_desc = repr(cmd_args)
+            raise PermissionError(
+                f"test attempted to run real command via {func_name}: {cmd_desc}"
+            )
 
+        return guarded
 
-def _guard_subprocess_run(original):
-    def guarded(args, *a, **kwargs):
-        if isinstance(args, (list, tuple)) and args:
-            cmd = pathlib.Path(args[0]).name
-            if cmd in BLOCKED_COMMANDS:
-                raise PermissionError(f"test attempted to run blocked command: {cmd}")
-        return original(args, *a, **kwargs)
-
-    return guarded
+    return decorator
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +91,23 @@ def block_real_config_writes(monkeypatch):
     )
     monkeypatch.setattr("shutil.copy2", _guard_copy2(original_copy2))
     monkeypatch.setattr("builtins.open", _guard_open(original_open))
-    monkeypatch.setattr("subprocess.run", _guard_subprocess_run(subprocess.run))
+    monkeypatch.setattr(
+        "subprocess.run", _guard_subprocess("subprocess.run")(subprocess.run)
+    )
+    monkeypatch.setattr(
+        "subprocess.Popen", _guard_subprocess("subprocess.Popen")(subprocess.Popen)
+    )
+    monkeypatch.setattr(
+        "subprocess.call", _guard_subprocess("subprocess.call")(subprocess.call)
+    )
+    monkeypatch.setattr(
+        "subprocess.check_call",
+        _guard_subprocess("subprocess.check_call")(subprocess.check_call),
+    )
+    monkeypatch.setattr(
+        "subprocess.check_output",
+        _guard_subprocess("subprocess.check_output")(subprocess.check_output),
+    )
 
 
 @pytest.fixture
