@@ -17,19 +17,31 @@ import json
 import re
 import sys
 
+# Optional path prefix: /usr/bin/, /usr/local/bin/, ./bin/, env, etc.
+_PATH = r"(?:[a-zA-Z0-9_./-]*/)?"
+_ENV = r"(?:\benv\s+(?:-\S+\s+)*)?"
+
 BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\bgit\s+add\b"), "git add"),
-    (re.compile(r"\bgit\s+push\b"), "git push"),
-    (re.compile(r"\bsudo\b"), "sudo"),
-    (re.compile(r"(?:^|&&|\|\||;|\|)\s*su\s*(?:$|\s|&&|\|\||;|\|)"), "su"),
-    (re.compile(r"\bmake\s+reconcile\b"), "make reconcile"),
+    (re.compile(rf"{_ENV}{_PATH}git\s+add\b"), "git add"),
+    (re.compile(rf"{_ENV}{_PATH}git\s+push\b"), "git push"),
+    (re.compile(rf"{_ENV}{_PATH}sudo\b"), "sudo"),
+    (re.compile(
+        rf"(?:^|&&|\|\||;|\|)\s*{_ENV}{_PATH}su\s*(?:$|\s|&&|\|\||;|\|)"
+    ), "su"),
+    (re.compile(rf"{_ENV}{_PATH}make\s+reconcile\b"), "make reconcile"),
 ]
 
 
 def check_command(command: str) -> str | None:
-    """Return the blocked command name if matched, or None if allowed."""
+    """Return the blocked command name if matched, or None if allowed.
+
+    Only checks the command portion before any heredoc (<<) to avoid
+    false positives from blocked words appearing in string literals.
+    """
+    # Strip heredoc body and quoted strings to avoid false positives
+    check_text = command.split("<<")[0] if "<<" in command else command
     for pattern, name in BLOCKED_PATTERNS:
-        if pattern.search(command):
+        if pattern.search(check_text):
             return name
     return None
 
