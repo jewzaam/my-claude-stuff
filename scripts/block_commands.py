@@ -48,7 +48,8 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(rf"{_ENV}{_PATH}make{_FLAGS}\s+reconcile\b"), "make reconcile"),
     (
         re.compile(
-            rf"{_ENV}{_PATH}git{_FLAGS}\s+commit\s.*(?:--amend\b|(?<=\s)-[a-zA-Z]*a[a-zA-Z]*)(?:\s|$)"
+            rf"{_ENV}{_PATH}git{_FLAGS}\s+commit\s.*"
+            rf"(?:--amend\b|(?<=\s)-[a-zA-Z]*a[a-zA-Z]*)(?:\s|$)"
         ),
         "git commit (--amend/-a)",
     ),
