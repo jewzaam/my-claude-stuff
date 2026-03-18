@@ -89,9 +89,7 @@ class TestCheckCommand:
             ("/sbin/su", "su"),
         ],
     )
-    def test_path_qualified_commands_blocked(
-        self, command: str, expected: str
-    ) -> None:
+    def test_path_qualified_commands_blocked(self, command: str, expected: str) -> None:
         assert block_commands.check_command(command) == expected
 
     @pytest.mark.parametrize(
@@ -103,9 +101,7 @@ class TestCheckCommand:
             ("env make reconcile", "make reconcile"),
         ],
     )
-    def test_env_prefixed_commands_blocked(
-        self, command: str, expected: str
-    ) -> None:
+    def test_env_prefixed_commands_blocked(self, command: str, expected: str) -> None:
         assert block_commands.check_command(command) == expected
 
     @pytest.mark.parametrize(
@@ -139,11 +135,11 @@ class TestCheckCommand:
         assert block_commands.check_command(command) == expected
 
     def test_blocked_word_in_heredoc_not_matched(self) -> None:
-        cmd = 'git commit -m "$(cat <<\'EOF\'\ngit add blocked\nEOF\n)"'
+        cmd = "git commit -m \"$(cat <<'EOF'\ngit add blocked\nEOF\n)\""
         assert block_commands.check_command(cmd) is None
 
     def test_blocked_word_before_heredoc_still_matched(self) -> None:
-        cmd = 'git push && cat <<EOF\nhello\nEOF'
+        cmd = "git push && cat <<EOF\nhello\nEOF"
         assert block_commands.check_command(cmd) == "git push"
 
 
