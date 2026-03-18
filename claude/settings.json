@@ -25,6 +25,17 @@
         "matcher": ""
       }
     ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "python3 ~/.claude/my-claude-stuff/scripts/block_commands.py",
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ],
     "Stop": [
       {
         "hooks": [
