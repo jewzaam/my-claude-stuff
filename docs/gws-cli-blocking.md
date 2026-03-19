@@ -36,7 +36,7 @@ Neither layer alone is sufficient. OAuth scopes can be re-granted; CLI blocking 
 | Meet | Yes | **No** | Space creation/modification blocked |
 | Classroom | No | **No** | Entire service blocked |
 | Events | No | **No** | Push notification subscriptions blocked |
-| Workflow | Partial | Partial | Only egress helpers blocked (+file-announce, +email-to-task) |
+| Workflow | **No** | **No** | Entire service blocked (not a use case) |
 
 ## Blocked Patterns Reference
 
@@ -124,14 +124,9 @@ Neither layer alone is sufficient. OAuth scopes can be re-granted; CLI blocking 
 
 **Allowed**: `presentations get`
 
-### Workflow (Egress helpers only)
+### Workflow (Entire service blocked)
 
-| Pattern | Matches | Why Blocked |
-|---------|---------|-------------|
-| `gws workflow\|wf +file-announce` | File announcement helper | Sends notifications about files |
-| `gws workflow\|wf +email-to-task` | Email-to-task helper | Creates tasks from emails (egress) |
-
-**Allowed**: `+standup-report`, `+meeting-prep`, `+weekly-digest` (read-only aggregation)
+All `gws workflow` and `gws wf` subcommands are blocked. Not a use case — the service is disabled entirely rather than selectively blocking egress helpers.
 
 ### Events/Subscriptions
 

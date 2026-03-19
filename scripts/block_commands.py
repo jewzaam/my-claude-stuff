@@ -23,8 +23,8 @@ Blocked categories:
   PowerShell: Format-Volume, Clear-Disk, Remove-Partition
   Cross-platform: curl/wget piped to sh/bash (presplit)
   GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
-           Keep, Forms (writes), Classroom (all), Meet (mutations),
-           Workflow/Events (egress helpers)
+           Keep, Forms, Docs, Slides (writes), Classroom, Workflow (all),
+           Meet (mutations), Events (subscriptions)
 """
 
 import json
@@ -262,13 +262,10 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         ),
         "gws slides (write)",
     ),
-    # Workflow: block egress helpers only (via workflow or wf alias)
+    # Workflow: block entire service (via workflow or wf alias)
     (
-        re.compile(
-            rf"{_ENV}{_PATH}gws{_EXE}\s+(?:workflow|wf)\s+"
-            r"\+(?:file-announce|email-to-task)\b"
-        ),
-        "gws workflow (egress)",
+        re.compile(rf"{_ENV}{_PATH}gws{_EXE}\s+(?:workflow|wf)\b"),
+        "gws workflow",
     ),
     # Events: block subscriptions (push notification channels)
     (

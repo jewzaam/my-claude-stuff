@@ -914,32 +914,20 @@ class TestGwsFormsBlocked:
 
 
 class TestGwsWorkflowBlocked:
-    """Workflow egress helpers must be blocked."""
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("gws workflow +file-announce", "gws workflow (egress)"),
-            ("gws wf +email-to-task", "gws workflow (egress)"),
-        ],
-    )
-    def test_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-
-class TestGwsWorkflowAllowed:
-    """Workflow non-egress helpers must be allowed."""
+    """Workflow — entire service blocked."""
 
     @pytest.mark.parametrize(
         "command",
         [
+            "gws workflow +file-announce",
+            "gws wf +email-to-task",
             "gws workflow +standup-report",
             "gws workflow +meeting-prep",
             "gws wf +weekly-digest",
         ],
     )
-    def test_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
+    def test_blocked(self, command: str) -> None:
+        assert block_commands.check_command(command) == "gws workflow"
 
 
 class TestGwsDocsBlocked:
