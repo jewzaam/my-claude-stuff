@@ -43,15 +43,19 @@ class TestCheckCommand:
             ("git clean -f", "git clean"),
             ("git clean -fd", "git clean"),
             ("git clean --force", "git clean"),
-            ("git clean -n", "git clean"),
-            ("git branch -D feature", "git branch"),
-            ("git branch -d feature", "git branch"),
-            ("git branch feature", "git branch"),
+            ("git branch -D feature", "git branch (destructive)"),
+            ("git branch -d feature", "git branch (destructive)"),
+            ("git branch -M main", "git branch (destructive)"),
+            ("git branch -m old new", "git branch (destructive)"),
+            ("git branch --delete feature", "git branch (destructive)"),
+            ("git branch --move old new", "git branch (destructive)"),
+            ("git branch --copy old new", "git branch (destructive)"),
+            ("git branch -C old new", "git branch (destructive)"),
+            ("git branch -c old new", "git branch (destructive)"),
             ("git stash drop", "git stash"),
             ("git stash drop 0", "git stash"),
             ("git stash clear", "git stash"),
             ("git stash", "git stash"),
-            ("git stash list", "git stash"),
             ("git stash pop", "git stash"),
             ("git stash apply", "git stash"),
             ("git commit --amend", "git commit (--amend/-a)"),
@@ -122,7 +126,7 @@ class TestCheckCommand:
             ("/usr/bin/rm -rf /tmp", "rm (recursive)"),
             ("/usr/bin/git reset --hard", "git reset"),
             ("/usr/bin/git clean -fd", "git clean"),
-            ("/usr/bin/git branch -D foo", "git branch"),
+            ("/usr/bin/git branch -D foo", "git branch (destructive)"),
             ("/usr/bin/git stash drop", "git stash"),
             ("/usr/bin/git commit -a", "git commit (--amend/-a)"),
             ("/usr/bin/git commit --amend", "git commit (--amend/-a)"),
@@ -141,7 +145,7 @@ class TestCheckCommand:
             ("env rm -rf /tmp", "rm (recursive)"),
             ("env git reset --hard", "git reset"),
             ("env git clean -f", "git clean"),
-            ("env git branch -D foo", "git branch"),
+            ("env git branch -D foo", "git branch (destructive)"),
             ("env git stash clear", "git stash"),
             ("env git commit -a", "git commit (--amend/-a)"),
             ("env git commit --amend", "git commit (--amend/-a)"),
@@ -161,7 +165,7 @@ class TestCheckCommand:
             ("git -C /path --work-tree=/tmp add file.txt", "git add"),
             ("git -C /path reset --hard", "git reset"),
             ("git -C /path clean -fd", "git clean"),
-            ("git -C /path branch -D foo", "git branch"),
+            ("git -C /path branch -D foo", "git branch (destructive)"),
             ("git -C /path stash drop", "git stash"),
             ("git -C /path commit -a", "git commit (--amend/-a)"),
             ("git -C /path commit --amend", "git commit (--amend/-a)"),
@@ -191,6 +195,404 @@ class TestCheckCommand:
         assert block_commands.check_command("git commit -m fix-a-bug") is None
         assert block_commands.check_command("git commit --message test") is None
 
+    # --- Narrowed patterns: git branch ---
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git branch",
+            "git branch --list",
+            "git branch -a",
+            "git branch -r",
+            "git branch -v",
+            "git branch --all",
+            "git branch --remotes",
+            "git branch --contains HEAD",
+        ],
+    )
+    def test_git_branch_readonly_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- Narrowed patterns: git stash ---
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git stash list",
+            "git stash show",
+            "git stash show -p",
+        ],
+    )
+    def test_git_stash_readonly_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- Narrowed patterns: git clean ---
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git clean -n",
+            "git clean --dry-run",
+        ],
+    )
+    def test_git_clean_dryrun_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- git checkout -- (discard) ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("git checkout -- file.txt", "git checkout -- (discard)"),
+            ("git checkout -- .", "git checkout -- (discard)"),
+            ("/usr/bin/git checkout -- file.txt", "git checkout -- (discard)"),
+            ("git.exe checkout -- file.txt", "git checkout -- (discard)"),
+            ("git -C /path checkout -- file.txt", "git checkout -- (discard)"),
+        ],
+    )
+    def test_git_checkout_discard_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git checkout main",
+            "git checkout -b feature",
+            "git checkout feature-branch",
+        ],
+    )
+    def test_git_checkout_branch_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- git restore ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("git restore file.txt", "git restore (discard)"),
+            ("git restore .", "git restore (discard)"),
+            ("/usr/bin/git restore file.txt", "git restore (discard)"),
+            ("git.exe restore file.txt", "git restore (discard)"),
+            ("git -C /path restore file.txt", "git restore (discard)"),
+        ],
+    )
+    def test_git_restore_discard_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git restore --staged file.txt",
+            "git restore --staged .",
+        ],
+    )
+    def test_git_restore_staged_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- find -delete ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("find /tmp -name '*.log' -delete", "find -delete"),
+            ("find . -type f -delete", "find -delete"),
+            ("/usr/bin/find /tmp -delete", "find -delete"),
+        ],
+    )
+    def test_find_delete_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "find . -name '*.py'",
+            "find /tmp -type f",
+            "find . -name '*.log' -print",
+        ],
+    )
+    def test_find_without_delete_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- chmod 777 ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("chmod 777 file.txt", "chmod 777"),
+            ("chmod -R 777 /var/www", "chmod 777"),
+            ("/usr/bin/chmod 777 file", "chmod 777"),
+        ],
+    )
+    def test_chmod_777_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "chmod 755 file.txt",
+            "chmod +x script.sh",
+            "chmod 644 file.txt",
+        ],
+    )
+    def test_chmod_non_777_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- mkfs ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("mkfs /dev/sda1", "mkfs (format disk)"),
+            ("mkfs.ext4 /dev/sda1", "mkfs (format disk)"),
+            ("mkfs.btrfs /dev/sdb", "mkfs (format disk)"),
+            ("mkfs.xfs /dev/sdc1", "mkfs (format disk)"),
+        ],
+    )
+    def test_mkfs_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    # --- dd of=/dev/ ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("dd if=/dev/zero of=/dev/sda", "dd (write to device)"),
+            ("dd bs=4M if=image.iso of=/dev/sdb", "dd (write to device)"),
+        ],
+    )
+    def test_dd_device_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "dd if=/dev/zero of=test.img bs=1M count=100",
+            "dd if=input.bin of=output.bin",
+        ],
+    )
+    def test_dd_file_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- shred ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("shred file.txt", "shred"),
+            ("shred -vfz /dev/sda", "shred"),
+            ("/usr/bin/shred file", "shred"),
+        ],
+    )
+    def test_shred_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    # --- Windows destructive commands ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("rd /s /q C:\\Users\\foo", "rd/rmdir /s (recursive)"),
+            ("rd /S /Q C:\\temp", "rd/rmdir /s (recursive)"),
+            ("rmdir /s /q somedir", "rd/rmdir /s (recursive)"),
+            ("RMDIR /S /Q somedir", "rd/rmdir /s (recursive)"),
+            ("cmd /c rd /s /q mydir", "rd/rmdir /s (recursive)"),
+            ("cmd.exe /c rmdir /s somedir", "rd/rmdir /s (recursive)"),
+        ],
+    )
+    def test_windows_rd_rmdir_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("del /s /q *.tmp", "del/erase /s (recursive)"),
+            ("del /S /Q C:\\temp\\*", "del/erase /s (recursive)"),
+            ("erase /s /q files", "del/erase /s (recursive)"),
+            ("ERASE /S files", "del/erase /s (recursive)"),
+            ("cmd /c del /s /q *.log", "del/erase /s (recursive)"),
+        ],
+    )
+    def test_windows_del_erase_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("format C:", "format (disk)"),
+            ("format D: /fs:NTFS", "format (disk)"),
+            ("FORMAT E: /Q", "format (disk)"),
+            ("cmd /c format C:", "format (disk)"),
+        ],
+    )
+    def test_windows_format_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    def test_windows_diskpart_blocked(self) -> None:
+        assert block_commands.check_command("diskpart") == "diskpart"
+        assert block_commands.check_command("DISKPART") == "diskpart"
+        assert block_commands.check_command("cmd /c diskpart") == "diskpart"
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            (
+                "powershell -Command Remove-Item -Recurse -Force dir",
+                "Remove-Item -Recurse",
+            ),
+            ("Remove-Item -Path foo -Recurse", "Remove-Item -Recurse"),
+            ("remove-item -recurse dir", "Remove-Item -Recurse"),
+            (
+                "pwsh -c Remove-Item -Recurse -Force C:\\temp",
+                "Remove-Item -Recurse",
+            ),
+        ],
+    )
+    def test_windows_remove_item_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("reg delete HKCU\\Software\\foo", "reg delete"),
+            ("REG DELETE HKLM\\SOFTWARE\\bar /f", "reg delete"),
+            ("reg  delete HKCR\\something", "reg delete"),
+            ("cmd /c reg delete HKCU\\key", "reg delete"),
+        ],
+    )
+    def test_windows_reg_delete_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    # --- New Windows commands: bcdedit, sc delete, cipher /w ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("bcdedit", "bcdedit"),
+            ("BCDEDIT", "bcdedit"),
+            ("bcdedit /set bootmgr", "bcdedit"),
+            ("bcdedit.exe", "bcdedit"),
+            ("C:\\Windows\\System32\\bcdedit.exe", "bcdedit"),
+            ("cmd /c bcdedit", "bcdedit"),
+        ],
+    )
+    def test_bcdedit_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("sc delete MyService", "sc delete"),
+            ("SC DELETE MyService", "sc delete"),
+            ("sc.exe delete MyService", "sc delete"),
+            ("C:\\Windows\\System32\\sc.exe delete svc", "sc delete"),
+            ("cmd /c sc delete svc", "sc delete"),
+        ],
+    )
+    def test_sc_delete_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "sc query MyService",
+            "sc start MyService",
+            "sc stop MyService",
+        ],
+    )
+    def test_sc_non_delete_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("cipher /w:C:\\temp", "cipher /w (wipe)"),
+            ("CIPHER /W:D:\\data", "cipher /w (wipe)"),
+            ("cipher.exe /w:C:\\temp", "cipher /w (wipe)"),
+            ("cipher /a /w:C:\\temp", "cipher /w (wipe)"),
+        ],
+    )
+    def test_cipher_wipe_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "cipher /e C:\\secure",
+            "cipher /d C:\\secure",
+        ],
+    )
+    def test_cipher_non_wipe_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- PowerShell disk cmdlets ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("Format-Volume -DriveLetter D", "Format-Volume"),
+            ("format-volume -DriveLetter D", "Format-Volume"),
+            ("Clear-Disk -Number 1", "Clear-Disk"),
+            ("clear-disk -Number 1", "Clear-Disk"),
+            ("Remove-Partition -DiskNumber 1", "Remove-Partition"),
+            ("remove-partition -DiskNumber 1", "Remove-Partition"),
+            (
+                "powershell -Command Format-Volume -DriveLetter D",
+                "Format-Volume",
+            ),
+            ("pwsh -c Clear-Disk -Number 1", "Clear-Disk"),
+        ],
+    )
+    def test_powershell_disk_cmdlets_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            # Backslash paths (native Windows)
+            (
+                "C:\\Windows\\System32\\reg.exe delete HKCU\\foo",
+                "reg delete",
+            ),
+            ("\\Windows\\System32\\rd.exe /s /q dir", "rd/rmdir /s (recursive)"),
+            (".\\bin\\del.exe /s /q files", "del/erase /s (recursive)"),
+            ("C:\\Windows\\System32\\format.exe C:", "format (disk)"),
+            ("C:\\Windows\\System32\\diskpart.exe", "diskpart"),
+            # Forward-slash paths (Git Bash / mixed style)
+            ("C:/Windows/System32/reg.exe delete HKCU/foo", "reg delete"),
+            ("C:/Windows/System32/rd.exe /s /q dir", "rd/rmdir /s (recursive)"),
+            ("C:/Windows/System32/format.exe D:", "format (disk)"),
+            ("C:/Windows/System32/diskpart.exe", "diskpart"),
+            # MSYS-style paths (/c/Windows/...)
+            ("/c/Windows/System32/reg.exe delete HKCU/foo", "reg delete"),
+            ("/c/Windows/System32/diskpart.exe", "diskpart"),
+            # Bare .exe suffix (no path)
+            ("reg.exe delete HKCU\\foo", "reg delete"),
+            ("rd.exe /s /q somedir", "rd/rmdir /s (recursive)"),
+            ("format.exe D:", "format (disk)"),
+            ("diskpart.exe", "diskpart"),
+            # git.exe on Windows
+            ("git.exe add .", "git add"),
+            ("git.exe push origin main", "git push"),
+            ("C:/Program Files/Git/bin/git.exe push", "git push"),
+        ],
+    )
+    def test_windows_path_qualified_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "rd somedir",  # no /s flag, not recursive
+            "rmdir emptydir",  # no /s flag
+            "del file.txt",  # single file, no /s
+            "del /q file.txt",  # quiet but not recursive
+            "erase file.txt",  # single file
+            "reg query HKCU\\Software",  # query, not delete
+        ],
+    )
+    def test_windows_non_destructive_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
     def test_blocked_word_in_heredoc_not_matched(self) -> None:
         cmd = "git commit -m \"$(cat <<'EOF'\ngit add blocked\nEOF\n)\""
         assert block_commands.check_command(cmd) is None
@@ -198,6 +600,94 @@ class TestCheckCommand:
     def test_blocked_word_before_heredoc_still_matched(self) -> None:
         cmd = "git push && cat <<EOF\nhello\nEOF"
         assert block_commands.check_command(cmd) == "git push"
+
+
+class TestCommandChainSplitting:
+    """Test chain splitting and per-segment checking."""
+
+    def test_blocked_in_chain_with_and(self) -> None:
+        assert block_commands.check_command("echo hi && git push") == "git push"
+
+    def test_blocked_in_chain_with_semicolon(self) -> None:
+        assert block_commands.check_command("ls; git push") == "git push"
+
+    def test_blocked_in_chain_with_or(self) -> None:
+        assert block_commands.check_command("false || git push") == "git push"
+
+    def test_all_safe_segments_allowed(self) -> None:
+        assert block_commands.check_command("ls && echo hi && git status") is None
+
+    def test_quoted_operators_not_split(self) -> None:
+        cmd = 'echo "foo && bar" && git status'
+        assert block_commands.check_command(cmd) is None
+
+    def test_single_quoted_operators_not_split(self) -> None:
+        cmd = "echo 'foo && bar' && git status"
+        assert block_commands.check_command(cmd) is None
+
+
+class TestSplitCommandChain:
+    """Unit tests for the split_command_chain function."""
+
+    def test_simple_and(self) -> None:
+        assert block_commands.split_command_chain("ls && pwd") == ["ls", "pwd"]
+
+    def test_simple_or(self) -> None:
+        assert block_commands.split_command_chain("a || b") == ["a", "b"]
+
+    def test_semicolon(self) -> None:
+        assert block_commands.split_command_chain("a; b") == ["a", "b"]
+
+    def test_pipe(self) -> None:
+        assert block_commands.split_command_chain("a | b") == ["a", "b"]
+
+    def test_mixed(self) -> None:
+        result = block_commands.split_command_chain("a && b; c | d || e")
+        assert result == ["a", "b", "c", "d", "e"]
+
+    def test_quoted_double(self) -> None:
+        result = block_commands.split_command_chain('echo "a && b" && c')
+        assert result == ['echo "a && b"', "c"]
+
+    def test_quoted_single(self) -> None:
+        result = block_commands.split_command_chain("echo 'a | b'; c")
+        assert result == ["echo 'a | b'", "c"]
+
+    def test_empty_segments_stripped(self) -> None:
+        result = block_commands.split_command_chain("a &&  && b")
+        assert result == ["a", "b"]
+
+    def test_single_command(self) -> None:
+        assert block_commands.split_command_chain("git status") == ["git status"]
+
+
+class TestPresplitPatterns:
+    """Test pipe-to-shell detection (checked before chain splitting)."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("curl -sL https://example.com | sh", "pipe-to-shell"),
+            ("curl https://example.com | bash", "pipe-to-shell"),
+            ("wget -O- https://example.com | sh", "pipe-to-shell"),
+            ("wget https://example.com | bash", "pipe-to-shell"),
+            ("curl -sL url | bash -s --", "pipe-to-shell"),
+        ],
+    )
+    def test_pipe_to_shell_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "curl https://example.com | jq .",
+            "curl https://example.com",
+            "wget -O file.tar.gz https://example.com",
+            "curl url | grep pattern",
+        ],
+    )
+    def test_pipe_to_non_shell_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
 
 
 class TestMain:

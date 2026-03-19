@@ -5,68 +5,242 @@
 Reads JSON from stdin with tool_input.command and checks against blocked
 command patterns. Exits 2 to block, 0 to allow.
 
-Blocked commands:
-  - git add
-  - git push
-  - git reset
-  - git clean
-  - git branch
-  - git stash
-  - sudo
-  - su (standalone, not as substring)
-  - rm with recursive flags (-r, -R, --recursive)
-  - make reconcile
-  - git commit with --amend or -a flag
+Preprocessing pipeline:
+  1. Strip heredoc bodies to avoid false positives from string literals
+  2. Normalize backslashes to forward slashes for consistent path matching
+  3. Check presplit patterns (pipe-to-shell) on full text
+  4. Split command chains (&&, ||, ;, |) respecting quoted strings
+  5. Check each segment against BLOCKED_PATTERNS
+
+Blocked categories:
+  Git: add, push, reset, clean (except -n), branch (destructive flags only),
+       stash (except list/show), commit --amend/-a, checkout -- (discard),
+       restore (except --staged)
+  Unix: sudo, su, rm -r, make reconcile, find -delete, chmod 777, mkfs,
+        dd of=/dev/, shred
+  Windows: rd/rmdir /s, del/erase /s, format, diskpart, bcdedit, sc delete,
+           cipher /w, Remove-Item -Recurse, reg delete
+  PowerShell: Format-Volume, Clear-Disk, Remove-Partition
+  Cross-platform: curl/wget piped to sh/bash (presplit)
 """
 
 import json
 import re
 import sys
 
-# Optional path prefix: /usr/bin/, /usr/local/bin/, ./bin/, env, etc.
-_PATH = r"(?:[a-zA-Z0-9_./-]*/)?"
+# Optional path prefix (Unix and Windows after normalization):
+# /usr/bin/, C:/Windows/System32/, ./bin/, etc.
+_PATH = r"(?:[a-zA-Z0-9_.:/-]*/)?"
+# Optional .exe suffix for Windows executables
+_EXE = r"(?:\.exe)?"
 _ENV = r"(?:\benv\s+(?:-\S+\s+)*)?"
 # Optional flags between command and subcommand (e.g. git -C /path, make -f file)
 _FLAGS = r"(?:\s+(?:-\S+|\S+=\S+)(?:\s+\S+)?)*"
+# Optional Windows-style single-letter flags: /q, /f, /S, etc.
+_WFLAGS = r"(?:\s+/[a-zA-Z])*"
+
+# Patterns checked BEFORE chain splitting (span pipes intentionally)
+PRESPLIT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(r"(?:curl|wget)\b.*\|\s*(?:ba)?sh\b"),
+        "pipe-to-shell",
+    ),
+]
 
 BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+add\b"), "git add"),
-    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+push\b"), "git push"),
-    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+reset\b"), "git reset"),
-    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+clean\b"), "git clean"),
-    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+branch\b"), "git branch"),
-    (re.compile(rf"{_ENV}{_PATH}git{_FLAGS}\s+stash\b"), "git stash"),
-    (re.compile(rf"{_ENV}{_PATH}sudo\b"), "sudo"),
+    (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+add\b"), "git add"),
+    (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+push\b"), "git push"),
+    (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+reset\b"), "git reset"),
+    # git clean: block all except -n/--dry-run (safe preview)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+clean" r"\b(?!\s+-(n|-dry-run)\b)"
+        ),
+        "git clean",
+    ),
+    # git branch: only block destructive flags (-d/-D/--delete, -m/-M/--move,
+    # -c/-C/--copy)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+branch\s+"
+            r".*(?:-[dDmMcC]\b|--delete\b|--move\b|--copy\b)"
+        ),
+        "git branch (destructive)",
+    ),
+    # git stash: block all except list/show (read-only)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+stash" r"\b(?!\s+(?:list|show)\b)"
+        ),
+        "git stash",
+    ),
+    (re.compile(rf"{_ENV}{_PATH}sudo{_EXE}\b"), "sudo"),
     (
         re.compile(rf"(?:^|&&|\|\||;|\|)\s*{_ENV}{_PATH}su\s*(?:$|\s|&&|\|\||;|\|)"),
         "su",
     ),
     (
-        re.compile(rf"{_ENV}{_PATH}rm\s+.*(-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)\b"),
+        re.compile(
+            rf"{_ENV}{_PATH}rm{_EXE}\s+.*(-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)\b"
+        ),
         "rm (recursive)",
     ),
-    (re.compile(rf"{_ENV}{_PATH}make{_FLAGS}\s+reconcile\b"), "make reconcile"),
+    (re.compile(rf"{_ENV}{_PATH}make{_EXE}{_FLAGS}\s+reconcile\b"), "make reconcile"),
     (
         re.compile(
-            rf"{_ENV}{_PATH}git{_FLAGS}\s+commit\s.*"
+            rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+commit\s.*"
             rf"(?:--amend\b|(?<=\s)-[a-zA-Z]*a[a-zA-Z]*)(?:\s|$)"
         ),
         "git commit (--amend/-a)",
     ),
+    # git checkout -- <files> (discard working tree changes)
+    (
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+checkout\s+--\s"),
+        "git checkout -- (discard)",
+    ),
+    # git restore (discard changes) — allow --staged which is safe
+    (
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+restore\b(?!.*--staged)"),
+        "git restore (discard)",
+    ),
+    # Unix filesystem destructive commands
+    (
+        re.compile(rf"{_ENV}{_PATH}find{_EXE}\s+.*\s-delete\b"),
+        "find -delete",
+    ),
+    (re.compile(rf"{_ENV}{_PATH}chmod{_EXE}\s+.*\b777\b"), "chmod 777"),
+    (re.compile(r"\bmkfs\S*\s+"), "mkfs (format disk)"),
+    (re.compile(r"\bdd\s+.*\bof=/dev/"), "dd (write to device)"),
+    (re.compile(rf"{_ENV}{_PATH}shred{_EXE}\s+"), "shred"),
+    # Windows destructive commands
+    (
+        re.compile(rf"{_PATH}(?:rd|rmdir){_EXE}\b.*\s/[sS]\b", re.IGNORECASE),
+        "rd/rmdir /s (recursive)",
+    ),
+    (
+        re.compile(rf"{_PATH}(?:del|erase){_EXE}\b.*\s/[sS]\b", re.IGNORECASE),
+        "del/erase /s (recursive)",
+    ),
+    (
+        re.compile(rf"{_PATH}format{_EXE}\b.*\s[a-zA-Z]:", re.IGNORECASE),
+        "format (disk)",
+    ),
+    (re.compile(rf"{_PATH}diskpart{_EXE}\b", re.IGNORECASE), "diskpart"),
+    (
+        re.compile(r"\bRemove-Item\b.*-Recurse\b", re.IGNORECASE),
+        "Remove-Item -Recurse",
+    ),
+    (re.compile(rf"{_PATH}reg{_EXE}\s+delete\b", re.IGNORECASE), "reg delete"),
+    # New Windows commands
+    (re.compile(rf"{_PATH}bcdedit{_EXE}\b", re.IGNORECASE), "bcdedit"),
+    (
+        re.compile(rf"{_PATH}sc{_EXE}\s+delete\b", re.IGNORECASE),
+        "sc delete",
+    ),
+    (
+        re.compile(rf"{_PATH}cipher{_EXE}{_WFLAGS}\s+/[wW]\b", re.IGNORECASE),
+        "cipher /w (wipe)",
+    ),
+    # PowerShell disk cmdlets
+    (re.compile(r"\bFormat-Volume\b", re.IGNORECASE), "Format-Volume"),
+    (re.compile(r"\bClear-Disk\b", re.IGNORECASE), "Clear-Disk"),
+    (re.compile(r"\bRemove-Partition\b", re.IGNORECASE), "Remove-Partition"),
 ]
+
+
+def split_command_chain(command: str) -> list[str]:
+    """Split on &&, ||, ;, | respecting quoted strings.
+
+    Character-by-character parser tracking single/double quote state.
+    Returns stripped non-empty segments.
+    """
+    segments: list[str] = []
+    current: list[str] = []
+    in_single = False
+    in_double = False
+    i = 0
+    length = len(command)
+
+    while i < length:
+        ch = command[i]
+
+        # Handle escape sequences inside double quotes
+        if ch == "\\" and in_double and i + 1 < length:
+            current.append(ch)
+            current.append(command[i + 1])
+            i += 2
+            continue
+
+        # Toggle quote state
+        if ch == "'" and not in_double:
+            in_single = not in_single
+            current.append(ch)
+            i += 1
+            continue
+        if ch == '"' and not in_single:
+            in_double = not in_double
+            current.append(ch)
+            i += 1
+            continue
+
+        # Only split when outside quotes
+        if not in_single and not in_double:
+            # Check for && or ||
+            if i + 1 < length and command[i : i + 2] in ("&&", "||"):
+                segment = "".join(current).strip()
+                if segment:
+                    segments.append(segment)
+                current = []
+                i += 2
+                continue
+            # Check for ; or |
+            if ch in (";", "|"):
+                segment = "".join(current).strip()
+                if segment:
+                    segments.append(segment)
+                current = []
+                i += 1
+                continue
+
+        current.append(ch)
+        i += 1
+
+    # Final segment
+    segment = "".join(current).strip()
+    if segment:
+        segments.append(segment)
+
+    return segments
 
 
 def check_command(command: str) -> str | None:
     """Return the blocked command name if matched, or None if allowed.
 
-    Only checks the command portion before any heredoc (<<) to avoid
-    false positives from blocked words appearing in string literals.
+    Pipeline:
+      1. Strip heredoc body to avoid false positives from string literals
+      2. Normalize backslashes to forward slashes for consistent path matching
+      3. Check presplit patterns on full text (pipe-to-shell detection)
+      4. Split command chains respecting quoted strings
+      5. Check each segment against BLOCKED_PATTERNS
     """
-    # Strip heredoc body and quoted strings to avoid false positives
+    # 1. Strip heredoc body
     check_text = command.split("<<")[0] if "<<" in command else command
-    for pattern, name in BLOCKED_PATTERNS:
+    # 2. Normalize backslashes to forward slashes
+    check_text = check_text.replace("\\", "/")
+
+    # 3. Check presplit patterns (span pipes intentionally)
+    for pattern, name in PRESPLIT_PATTERNS:
         if pattern.search(check_text):
             return name
+
+    # 4. Split into chain segments
+    segments = split_command_chain(check_text)
+
+    # 5. Check each segment against blocked patterns
+    for segment in segments:
+        for pattern, name in BLOCKED_PATTERNS:
+            if pattern.search(segment):
+                return name
     return None
 
 
