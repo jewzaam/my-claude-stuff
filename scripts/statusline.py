@@ -46,13 +46,18 @@ def _configure_logging():
     try:
         USAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(
-            str(LOG_FILE), maxBytes=256 * 1024, backupCount=1, encoding="utf-8",
+            str(LOG_FILE),
+            maxBytes=256 * 1024,
+            backupCount=1,
+            encoding="utf-8",
         )
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
         logger.addHandler(handler)
         logger.setLevel(logging.DEBUG)
     except OSError:
         pass
+
+
 # source: reddit.com/r/ClaudeAI/comments/1rqnryw
 USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
 
@@ -132,40 +137,89 @@ def fetch_usage():
         return None
 
 
+def _read_cache():
+    """Read and migrate cache file. Returns dict or None."""
+    if not USAGE_CACHE_FILE.exists():
+        return None
+    try:
+        cached = json.loads(USAGE_CACHE_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    # Migrate old single-letter keys to new schema
+    if "v" in cached and "response_data" not in cached:
+        cached = {
+            "response_data": cached["v"],
+            "last_success_at": cached.get("t", 0),
+            "last_attempt_at": cached.get("t", 0),
+            "consecutive_failures": 0,
+        }
+    return cached
+
+
+def _write_cache(cache_dict):
+    """Write cache dict to disk."""
+    try:
+        USAGE_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        USAGE_CACHE_FILE.write_text(json.dumps(cache_dict), encoding="utf-8")
+    except OSError:
+        pass
+
+
+MAX_COOLDOWN_SECONDS = 3600
+
+
 def get_usage():
     """Return (usage_dict, age_seconds, stale) or (None, 0, False)."""
     now = time.time()
+    cached = _read_cache()
 
-    if USAGE_CACHE_FILE.exists():
-        try:
-            cached = json.loads(USAGE_CACHE_FILE.read_text(encoding="utf-8"))
-            age = now - cached.get("t", 0)
-            if age < USAGE_CACHE_TTL_SECONDS:
-                return cached.get("v"), age, False
-        except (json.JSONDecodeError, OSError):
-            cached = None
+    if cached:
+        age = now - cached.get("last_success_at", 0)
+        if age < USAGE_CACHE_TTL_SECONDS:
+            return cached.get("response_data"), age, False
+
+        # Stale — check if we should skip fetch due to backoff cooldown
+        failures = cached.get("consecutive_failures", 0)
+        if failures > 0:
+            cooldown = min(
+                USAGE_CACHE_TTL_SECONDS * (2**failures), MAX_COOLDOWN_SECONDS
+            )
+            since_last_attempt = now - cached.get("last_attempt_at", 0)
+            if since_last_attempt < cooldown:
+                logger.info(
+                    "Backoff: skipping fetch, %d consecutive failures, "
+                    "cooldown %.0fs, %.0fs remaining",
+                    failures,
+                    cooldown,
+                    cooldown - since_last_attempt,
+                )
+                return cached.get("response_data"), age, True
 
     result = fetch_usage()
 
     if result is not None:
-        try:
-            USAGE_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-            USAGE_CACHE_FILE.write_text(
-                json.dumps({"v": result, "t": now}),
-                encoding="utf-8",
-            )
-        except OSError:
-            pass
+        _write_cache(
+            {
+                "response_data": result,
+                "last_success_at": now,
+                "last_attempt_at": now,
+                "consecutive_failures": 0,
+            }
+        )
         return result, 0, False
 
-    # On failure (429 or other), return stale cache
-    if USAGE_CACHE_FILE.exists():
-        try:
-            cached = json.loads(USAGE_CACHE_FILE.read_text(encoding="utf-8"))
-            age = now - cached.get("t", 0)
-            return cached.get("v"), age, True
-        except (json.JSONDecodeError, OSError):
-            pass
+    # Fetch failed — update attempt tracking, preserve stale data
+    if cached:
+        cached["last_attempt_at"] = now
+        cached["consecutive_failures"] = cached.get("consecutive_failures", 0) + 1
+        _write_cache(cached)
+        age = now - cached.get("last_success_at", 0)
+        logger.warning(
+            "Fetch failed, consecutive_failures=%d, serving stale cache (%.0fs old)",
+            cached["consecutive_failures"],
+            age,
+        )
+        return cached.get("response_data"), age, True
 
     return None, 0, False
 

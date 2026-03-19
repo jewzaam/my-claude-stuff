@@ -186,11 +186,55 @@ class TestFetchUsage:
 # --- get_usage ---
 
 
+def _make_cache(
+    response_data,
+    last_success_at,
+    last_attempt_at=None,
+    consecutive_failures=0,
+):
+    """Helper to build a cache dict in the new schema."""
+    return {
+        "response_data": response_data,
+        "last_success_at": last_success_at,
+        "last_attempt_at": last_attempt_at or last_success_at,
+        "consecutive_failures": consecutive_failures,
+    }
+
+
+class TestReadCache:
+    def test_migrates_old_schema(self, isolate_paths):
+        _, cache_file, _ = isolate_paths
+        old_cache = {"v": SAMPLE_USAGE_RESPONSE, "t": 1000.0}
+        cache_file.write_text(json.dumps(old_cache), encoding="utf-8")
+
+        result = statusline._read_cache()
+        assert result["response_data"] == SAMPLE_USAGE_RESPONSE
+        assert result["last_success_at"] == 1000.0
+        assert result["consecutive_failures"] == 0
+
+    def test_reads_new_schema(self, isolate_paths):
+        _, cache_file, _ = isolate_paths
+        new_cache = _make_cache(SAMPLE_USAGE_RESPONSE, 2000.0, consecutive_failures=3)
+        cache_file.write_text(json.dumps(new_cache), encoding="utf-8")
+
+        result = statusline._read_cache()
+        assert result["response_data"] == SAMPLE_USAGE_RESPONSE
+        assert result["consecutive_failures"] == 3
+
+    def test_corrupt_returns_none(self, isolate_paths):
+        _, cache_file, _ = isolate_paths
+        cache_file.write_text("{corrupt", encoding="utf-8")
+        assert statusline._read_cache() is None
+
+    def test_missing_returns_none(self):
+        assert statusline._read_cache() is None
+
+
 class TestGetUsage:
     def test_fresh_cache_hit(self, isolate_paths, monkeypatch):
         _, cache_file, _ = isolate_paths
         cache_time = time.time() - 30
-        cached = {"v": SAMPLE_USAGE_RESPONSE, "t": cache_time}
+        cached = _make_cache(SAMPLE_USAGE_RESPONSE, cache_time)
         cache_file.write_text(json.dumps(cached), encoding="utf-8")
 
         fetch_called = []
@@ -206,10 +250,29 @@ class TestGetUsage:
         assert stale is False
         assert len(fetch_called) == 0
 
+    def test_fresh_cache_hit_old_schema(self, isolate_paths, monkeypatch):
+        """Old-format cache files still work as fresh cache hits."""
+        _, cache_file, _ = isolate_paths
+        cache_time = time.time() - 30
+        cached = {"v": SAMPLE_USAGE_RESPONSE, "t": cache_time}
+        cache_file.write_text(json.dumps(cached), encoding="utf-8")
+
+        fetch_called = []
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: fetch_called.append(1),
+        )
+
+        usage, age, stale = statusline.get_usage()
+        assert usage == SAMPLE_USAGE_RESPONSE
+        assert stale is False
+        assert len(fetch_called) == 0
+
     def test_stale_cache_triggers_fetch(self, isolate_paths, monkeypatch):
         _, cache_file, _ = isolate_paths
         stale_time = time.time() - statusline.USAGE_CACHE_TTL_SECONDS - 10
-        cached = {"v": {"old": True}, "t": stale_time}
+        cached = _make_cache({"old": True}, stale_time)
         cache_file.write_text(json.dumps(cached), encoding="utf-8")
 
         monkeypatch.setattr(
@@ -226,7 +289,7 @@ class TestGetUsage:
     def test_fetch_failure_uses_stale_cache(self, isolate_paths, monkeypatch):
         _, cache_file, _ = isolate_paths
         stale_time = time.time() - statusline.USAGE_CACHE_TTL_SECONDS - 10
-        cached = {"v": {"stale": True}, "t": stale_time}
+        cached = _make_cache({"stale": True}, stale_time)
         cache_file.write_text(json.dumps(cached), encoding="utf-8")
 
         monkeypatch.setattr(statusline, "fetch_usage", lambda: None)
@@ -235,6 +298,123 @@ class TestGetUsage:
         assert usage == {"stale": True}
         assert age >= statusline.USAGE_CACHE_TTL_SECONDS
         assert stale is True
+
+    def test_fetch_failure_increments_consecutive_failures(
+        self, isolate_paths, monkeypatch
+    ):
+        _, cache_file, _ = isolate_paths
+        now = time.time()
+        # last_attempt_at must be past cooldown (120*2^2=480s)
+        cached = _make_cache(
+            {"stale": True},
+            now - 600,
+            last_attempt_at=now - 600,
+            consecutive_failures=2,
+        )
+        cache_file.write_text(json.dumps(cached), encoding="utf-8")
+
+        monkeypatch.setattr(statusline, "fetch_usage", lambda: None)
+        statusline.get_usage()
+
+        written = json.loads(cache_file.read_text(encoding="utf-8"))
+        assert written["consecutive_failures"] == 3
+
+    def test_success_resets_consecutive_failures(self, isolate_paths, monkeypatch):
+        _, cache_file, _ = isolate_paths
+        now = time.time()
+        # last_attempt_at must be past max cooldown (3600s)
+        cached = _make_cache(
+            {"old": True},
+            now - 5000,
+            last_attempt_at=now - 4000,
+            consecutive_failures=5,
+        )
+        cache_file.write_text(json.dumps(cached), encoding="utf-8")
+
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: SAMPLE_USAGE_RESPONSE,
+        )
+        statusline.get_usage()
+
+        written = json.loads(cache_file.read_text(encoding="utf-8"))
+        assert written["consecutive_failures"] == 0
+
+    def test_backoff_skips_fetch(self, isolate_paths, monkeypatch):
+        """With recent failures, fetch should be skipped during cooldown."""
+        _, cache_file, _ = isolate_paths
+        now = time.time()
+        # 2 failures: cooldown = 120 * 2^2 = 480s
+        # last_attempt_at was 10s ago, well within cooldown
+        cached = _make_cache(
+            {"stale": True},
+            now - 600,
+            last_attempt_at=now - 10,
+            consecutive_failures=2,
+        )
+        cache_file.write_text(json.dumps(cached), encoding="utf-8")
+
+        fetch_called = []
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: fetch_called.append(1),
+        )
+
+        usage, age, stale = statusline.get_usage()
+        assert usage == {"stale": True}
+        assert stale is True
+        assert len(fetch_called) == 0
+
+    def test_backoff_allows_fetch_after_cooldown(self, isolate_paths, monkeypatch):
+        """After cooldown expires, fetch should proceed."""
+        _, cache_file, _ = isolate_paths
+        now = time.time()
+        # 1 failure: cooldown = 120 * 2^1 = 240s
+        # last_attempt_at was 300s ago, past cooldown
+        cached = _make_cache(
+            {"stale": True},
+            now - 600,
+            last_attempt_at=now - 300,
+            consecutive_failures=1,
+        )
+        cache_file.write_text(json.dumps(cached), encoding="utf-8")
+
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: SAMPLE_USAGE_RESPONSE,
+        )
+
+        usage, age, stale = statusline.get_usage()
+        assert usage == SAMPLE_USAGE_RESPONSE
+        assert stale is False
+
+    def test_backoff_caps_at_max_cooldown(self, isolate_paths, monkeypatch):
+        """Cooldown should not exceed MAX_COOLDOWN_SECONDS (3600)."""
+        _, cache_file, _ = isolate_paths
+        now = time.time()
+        # 20 failures: 120 * 2^20 would be huge, but caps at 3600
+        # last_attempt_at was 3601s ago, just past max cooldown
+        cached = _make_cache(
+            {"stale": True},
+            now - 10000,
+            last_attempt_at=now - 3601,
+            consecutive_failures=20,
+        )
+        cache_file.write_text(json.dumps(cached), encoding="utf-8")
+
+        fetch_called = []
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: fetch_called.append(1) or SAMPLE_USAGE_RESPONSE,
+        )
+
+        usage, age, stale = statusline.get_usage()
+        assert len(fetch_called) == 1
+        assert stale is False
 
     def test_no_cache_no_fetch(self, monkeypatch):
         monkeypatch.setattr(statusline, "fetch_usage", lambda: None)
@@ -254,7 +434,8 @@ class TestGetUsage:
         statusline.get_usage()
         assert cache_file.exists()
         written = json.loads(cache_file.read_text(encoding="utf-8"))
-        assert written["v"] == SAMPLE_USAGE_RESPONSE
+        assert written["response_data"] == SAMPLE_USAGE_RESPONSE
+        assert written["consecutive_failures"] == 0
 
     def test_corrupt_cache_ignored(self, isolate_paths, monkeypatch):
         _, cache_file, _ = isolate_paths
