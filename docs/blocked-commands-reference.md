@@ -78,6 +78,10 @@ Complete reference for every blocked pattern in `scripts/block_commands.py`.
 |---------|----------|---------|---------------------|------------------------|------|
 | `make reconcile` | All | `make\s+reconcile\b` | Deploys scripts to `~/.claude/` — affects live environment | `make test`, `make format` | Sensitive |
 
+## Google Workspace CLI
+
+The `gws` CLI has 15 blocked patterns covering Gmail, Calendar, Chat, Drive, Sheets, Tasks, Keep, Forms, Workflow, Events, Classroom, and Meet mutations. See [gws-cli-blocking.md](gws-cli-blocking.md) for the full reference including threat model, access policy, and security analysis.
+
 ## Excluded Commands (Not Blocked)
 
 | Command | Why Excluded |
