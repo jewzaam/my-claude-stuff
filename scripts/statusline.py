@@ -18,6 +18,8 @@ Session cost (Vertex only) from Claude Code stdin.
 """
 
 import json
+import logging
+import logging.handlers
 import os
 import sys
 import time
@@ -27,8 +29,30 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 USAGE_CACHE_TTL_SECONDS = 120
-USAGE_CACHE_FILE = Path.home() / ".claude" / "statusline-cache" / "oauth_usage.json"
+USAGE_CACHE_DIR = Path.home() / ".claude" / "statusline-cache"
+USAGE_CACHE_FILE = USAGE_CACHE_DIR / "oauth_usage.json"
+LOG_FILE = USAGE_CACHE_DIR / "statusline.log"
 CREDENTIALS_FILE = Path.home() / ".claude" / ".credentials.json"
+
+logger = logging.getLogger("statusline")
+_log_configured = False
+
+
+def _configure_logging():
+    global _log_configured
+    if _log_configured:
+        return
+    _log_configured = True
+    try:
+        USAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        handler = logging.handlers.RotatingFileHandler(
+            str(LOG_FILE), maxBytes=256 * 1024, backupCount=1, encoding="utf-8",
+        )
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+    except OSError:
+        pass
 # source: reddit.com/r/ClaudeAI/comments/1rqnryw
 USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
 
@@ -75,13 +99,15 @@ def get_oauth_token():
     try:
         data = json.loads(CREDENTIALS_FILE.read_text(encoding="utf-8"))
         return data["claudeAiOauth"]["accessToken"]
-    except (OSError, KeyError, json.JSONDecodeError):
+    except (OSError, KeyError, json.JSONDecodeError) as e:
+        logger.error("Failed to read OAuth token: %s", e)
         return None
 
 
 def fetch_usage():
     token = get_oauth_token()
     if not token:
+        logger.warning("No OAuth token available, skipping fetch")
         return None
 
     req = urllib.request.Request(USAGE_API_URL)
@@ -90,8 +116,19 @@ def fetch_usage():
 
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
-            return json.loads(resp.read())
-    except (urllib.error.URLError, OSError, json.JSONDecodeError):
+            data = json.loads(resp.read())
+            logger.debug("Fetch succeeded")
+            return data
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode()[:200]
+        except Exception:
+            pass
+        logger.error("HTTP %d %s: %s", e.code, e.reason, body)
+        return None
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+        logger.error("Fetch failed: %s: %s", type(e).__name__, e)
         return None
 
 
@@ -134,6 +171,7 @@ def get_usage():
 
 
 def main():
+    _configure_logging()
     try:
         data = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError):
