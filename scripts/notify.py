@@ -89,7 +89,7 @@ def detect_platform() -> str:
 def _short_cwd(cwd: str) -> str:
     """Shorten cwd to be relative to home directory using ~."""
     try:
-        return str(Path(cwd).relative_to(Path.home()))
+        return Path(cwd).relative_to(Path.home()).as_posix()
     except ValueError:
         return cwd
 
