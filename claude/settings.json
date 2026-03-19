@@ -45,6 +45,26 @@
           }
         ],
         "matcher": ""
+      },
+      {
+        "hooks": [
+          {
+            "command": "python3 ~/.claude/my-claude-stuff/scripts/prompt_log.py",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "python3 ~/.claude/my-claude-stuff/scripts/prompt_log.py",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
       }
     ]
   },
