@@ -106,6 +106,7 @@
       "Bash(python -m pytest:*)",
       "Bash(wc:*)",
       "WebSearch",
+      "mcp__allowlist__get_allowed_permissions",
       "mcp__plugin_atlassian_atlassian__atlassianUserInfo",
       "mcp__plugin_atlassian_atlassian__fetch",
       "mcp__plugin_atlassian_atlassian__getAccessibleAtlassianResources",
