@@ -244,9 +244,7 @@ class TestCommandChaining:
             block_paths.main()
         assert exc_info.value.code == 2
 
-    def test_semicolon_in_quotes_allowed(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_semicolon_in_quotes_allowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = {
             "tool_name": "Bash",
             "tool_input": {"command": "grep 'foo;bar' /tmp/file.txt"},
@@ -266,9 +264,7 @@ class TestCommandChaining:
         monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
         block_paths.main()  # should not raise
 
-    def test_no_semicolon_allowed(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_semicolon_allowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = {
             "tool_name": "Bash",
             "tool_input": {"command": "ls /tmp"},
