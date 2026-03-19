@@ -16,12 +16,18 @@ Blocked categories:
   Git: -C flag (use plain git), add, push, reset, clean (except -n),
        branch (destructive flags only),
        stash (except list/show), commit --amend/-a, checkout -- (discard),
-       restore (except --staged)
+       restore (except --staged), rebase, filter-branch, filter-repo,
+       reflog expire, gc --prune=now
   Unix: sudo, su, rm -r, make reconcile, find -delete, chmod 777, mkfs,
-        dd of=/dev/, shred
+        dd of=/dev/, shred, truncate
   Windows: rd/rmdir /s, del/erase /s, format, diskpart, bcdedit, sc delete,
-           cipher /w, Remove-Item -Recurse, reg delete
-  PowerShell: Format-Volume, Clear-Disk, Remove-Partition
+           cipher /w, Remove-Item -Recurse, reg delete, takeown,
+           icacls (grant/deny/remove)
+  PowerShell: Format-Volume, Clear-Disk, Remove-Partition,
+              Stop-Service, Stop-Process
+  Publishing: npm publish, twine upload, gem push, cargo publish,
+              dotnet nuget push
+  Network: nc/netcat/ncat, scp, rsync, ftp/sftp, telnet, ssh, socat
   Cross-platform: curl/wget piped to sh/bash (presplit)
   GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
            Keep, Forms, Docs, Slides (writes), Classroom, Workflow (all),
@@ -83,6 +89,26 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         ),
         "git stash",
     ),
+    # Git history rewriting
+    (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+rebase\b"), "git rebase"),
+    (
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+filter-branch\b"),
+        "git filter-branch",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+filter-repo\b"),
+        "git filter-repo",
+    ),
+    # git reflog expire: block expire subcommand, allow reflog/reflog show
+    (
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+reflog\s+expire\b"),
+        "git reflog expire",
+    ),
+    # git gc --prune=now: block immediate prune, allow plain gc
+    (
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+gc\b.*--prune=now\b"),
+        "git gc --prune=now",
+    ),
     (re.compile(rf"{_ENV}{_PATH}sudo{_EXE}\b"), "sudo"),
     (
         re.compile(rf"(?:^|&&|\|\||;|\|)\s*{_ENV}{_PATH}su\s*(?:$|\s|&&|\|\||;|\|)"),
@@ -121,6 +147,22 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bmkfs\S*\s+"), "mkfs (format disk)"),
     (re.compile(r"\bdd\s+.*\bof=/dev/"), "dd (write to device)"),
     (re.compile(rf"{_ENV}{_PATH}shred{_EXE}\s+"), "shred"),
+    # File truncation
+    (re.compile(rf"{_ENV}{_PATH}truncate{_EXE}\b"), "truncate"),
+    # Accidental publishing
+    (re.compile(r"\bnpm\s+publish\b"), "npm publish"),
+    (re.compile(r"\btwine\s+upload\b"), "twine upload"),
+    (re.compile(r"\bgem\s+push\b"), "gem push"),
+    (re.compile(r"\bcargo\s+publish\b"), "cargo publish"),
+    (re.compile(r"\bdotnet\s+nuget\s+push\b"), "dotnet nuget push"),
+    # Network/remote access tools
+    (re.compile(r"\b(?:nc|netcat|ncat)\b"), "nc/netcat (network tool)"),
+    (re.compile(rf"{_ENV}{_PATH}scp{_EXE}\b"), "scp"),
+    (re.compile(rf"{_ENV}{_PATH}rsync{_EXE}\b"), "rsync"),
+    (re.compile(r"\b(?:s?ftp)\b"), "ftp/sftp"),
+    (re.compile(r"\btelnet\b"), "telnet"),
+    (re.compile(rf"{_ENV}{_PATH}ssh{_EXE}\b"), "ssh"),
+    (re.compile(r"\bsocat\b"), "socat"),
     # Windows destructive commands
     (
         re.compile(rf"{_PATH}(?:rd|rmdir){_EXE}\b.*\s/[sS]\b", re.IGNORECASE),
@@ -150,10 +192,21 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         re.compile(rf"{_PATH}cipher{_EXE}{_WFLAGS}\s+/[wW]\b", re.IGNORECASE),
         "cipher /w (wipe)",
     ),
+    # Windows system tools
+    (re.compile(rf"{_PATH}takeown{_EXE}\b", re.IGNORECASE), "takeown"),
+    (
+        re.compile(
+            rf"{_PATH}icacls{_EXE}\b.*\s/(?:grant|deny|remove)\b", re.IGNORECASE
+        ),
+        "icacls (modify permissions)",
+    ),
     # PowerShell disk cmdlets
     (re.compile(r"\bFormat-Volume\b", re.IGNORECASE), "Format-Volume"),
     (re.compile(r"\bClear-Disk\b", re.IGNORECASE), "Clear-Disk"),
     (re.compile(r"\bRemove-Partition\b", re.IGNORECASE), "Remove-Partition"),
+    # PowerShell process/service cmdlets
+    (re.compile(r"\bStop-Service\b", re.IGNORECASE), "Stop-Service"),
+    (re.compile(r"\bStop-Process\b", re.IGNORECASE), "Stop-Process"),
     # GWS CLI mutation blocking (defense-in-depth alongside OAuth scope control)
     # Gmail: NEVER allow mutations — primary email egress risk
     (

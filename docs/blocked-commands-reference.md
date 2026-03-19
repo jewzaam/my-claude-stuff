@@ -15,6 +15,11 @@ Complete reference for every blocked pattern in `scripts/block_commands.py`.
 | `git commit --amend/-a` | All | `git commit\s.*(?:--amend\b\|-[a-zA-Z]*a)` | `--amend` rewrites history, `-a` auto-stages | `git commit -m msg` | Sensitive |
 | `git checkout --` | All | `git checkout\s+--\s` | Discards working tree changes permanently | `git checkout branch`, `git checkout -b new` | Sensitive |
 | `git restore` | All | `git restore\b(?!.*--staged)` | Discards working tree changes permanently | `git restore --staged` | Sensitive |
+| `git rebase` | All | `git rebase\b` | Rewrites commit history, can lose work | None | Sensitive |
+| `git filter-branch` | All | `git filter-branch\b` | Rewrites entire repository history | None | Sensitive |
+| `git filter-repo` | All | `git filter-repo\b` | Rewrites entire repository history (newer tool) | None | Sensitive |
+| `git reflog expire` | All | `git reflog\s+expire\b` | Permanently deletes reflog entries | `git reflog`, `git reflog show` | Sensitive |
+| `git gc --prune=now` | All | `git gc\b.*--prune=now\b` | Immediately deletes unreachable objects | `git gc`, `git gc --aggressive` | Sensitive |
 
 ## Unix Privilege Escalation
 
@@ -31,6 +36,7 @@ Complete reference for every blocked pattern in `scripts/block_commands.py`.
 | `find -delete` | Unix | `find\s+.*\s-delete\b` | Deletes files matching criteria without confirmation | `find . -name '*.py'` | Sensitive |
 | `chmod 777` | Unix | `chmod\s+.*\b777\b` | World-writable permissions — security vulnerability | `chmod 755`, `chmod +x` | Sensitive |
 | `shred` | Unix | `shred\s+` | Overwrites file data to prevent recovery — inherently destructive | None | Sensitive |
+| `truncate` | Unix | `truncate\b` | Silently zeros or resizes files | None | Sensitive |
 
 ## Unix Disk/Device
 
@@ -46,6 +52,8 @@ Complete reference for every blocked pattern in `scripts/block_commands.py`.
 | `rd/rmdir /s` | Windows | `(?:rd\|rmdir)\b.*\s/[sS]\b` | Recursively deletes directory trees | `rd somedir` (non-recursive) | Insensitive |
 | `del/erase /s` | Windows | `(?:del\|erase)\b.*\s/[sS]\b` | Recursively deletes files | `del file.txt` (single file) | Insensitive |
 | `cipher /w` | Windows | `cipher{_WFLAGS}\s+/[wW]\b` | Wipes free space — destroys recoverable data | `cipher /e`, `cipher /d` | Insensitive |
+| `takeown` | Windows | `takeown\b` | Changes file ownership | None | Insensitive |
+| `icacls` (modify) | Windows | `icacls\b.*\s/(grant\|deny\|remove)\b` | Modifies file permissions | `icacls path` (read-only query) | Insensitive |
 
 ## Windows Disk/System
 
@@ -65,6 +73,30 @@ Complete reference for every blocked pattern in `scripts/block_commands.py`.
 | `Format-Volume` | Windows | `Format-Volume\b` | Formats disk volumes — destroys all data | None | Insensitive |
 | `Clear-Disk` | Windows | `Clear-Disk\b` | Wipes all data from a disk | None | Insensitive |
 | `Remove-Partition` | Windows | `Remove-Partition\b` | Removes disk partitions — destroys volume structure | None | Insensitive |
+| `Stop-Service` | Windows | `Stop-Service\b` | Stops Windows services | `Get-Service` | Insensitive |
+| `Stop-Process` | Windows | `Stop-Process\b` | Kills processes | `Get-Process` | Insensitive |
+
+## Package Publishing
+
+| Command | Platform | Pattern | Destructive Because | Safe Variants (Allowed) | Case |
+|---------|----------|---------|---------------------|------------------------|------|
+| `npm publish` | All | `npm\s+publish\b` | Publishes package to public registry | All other npm commands | Sensitive |
+| `twine upload` | All | `twine\s+upload\b` | Publishes Python package to PyPI | None | Sensitive |
+| `gem push` | All | `gem\s+push\b` | Publishes Ruby gem | All other gem commands | Sensitive |
+| `cargo publish` | All | `cargo\s+publish\b` | Publishes Rust crate | All other cargo commands | Sensitive |
+| `dotnet nuget push` | All | `dotnet\s+nuget\s+push\b` | Publishes .NET package | All other dotnet commands | Sensitive |
+
+## Network/Remote Access
+
+| Command | Platform | Pattern | Destructive Because | Safe Variants (Allowed) | Case |
+|---------|----------|---------|---------------------|------------------------|------|
+| `nc`/`netcat`/`ncat` | All | `(?:nc\|netcat\|ncat)\b` | Reverse shells, data exfiltration | None | Sensitive |
+| `scp` | All | `scp\b` | Remote file transfer — no model use case | None | Sensitive |
+| `rsync` | All | `rsync\b` | Remote sync — no model use case | None | Sensitive |
+| `ftp`/`sftp` | All | `(?:s?ftp)\b` | Remote file transfer — no model use case | None | Sensitive |
+| `telnet` | All | `telnet\b` | Unencrypted remote access — no model use case | None | Sensitive |
+| `ssh` | All | `ssh\b` | Remote shell access — no model use case | None | Sensitive |
+| `socat` | All | `socat\b` | Network relay/reverse shell tool | None | Sensitive |
 
 ## Cross-Platform (Presplit)
 
@@ -121,7 +153,6 @@ Add a `(compiled_regex, description)` tuple to `BLOCKED_PATH_PATTERNS` in `scrip
 
 | Command | Why Excluded |
 |---------|-------------|
-| `Stop-Service` / `Stop-Process` | Reversible, equivalent to `kill` which we don't block |
 | `git revert` | Non-destructive (creates new commit) |
 | `python -c` / `node -e` | Too broad, breaks legitimate scripting |
 | `eval` | Too broad, impossible to regex effectively |
