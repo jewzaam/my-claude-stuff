@@ -80,7 +80,7 @@ Complete reference for every blocked pattern in `scripts/block_commands.py`.
 
 ## Google Workspace CLI
 
-The `gws` CLI has 15 blocked patterns covering Gmail, Calendar, Chat, Drive, Sheets, Tasks, Keep, Forms, Workflow, Events, Classroom, and Meet mutations. See [gws-cli-blocking.md](gws-cli-blocking.md) for the full reference including threat model, access policy, and security analysis.
+The `gws` CLI has 15 blocked patterns covering Gmail, Calendar, Chat, Drive, Sheets, Tasks, Keep, Forms, Docs, Slides, Events, and Meet mutations, plus full-service blocks on Workflow and Classroom. See [gws-cli-blocking.md](gws-cli-blocking.md) for the full reference including threat model, access policy, and security analysis.
 
 ## Excluded Commands (Not Blocked)
 
