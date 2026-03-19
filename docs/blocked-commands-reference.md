@@ -82,6 +82,41 @@ Complete reference for every blocked pattern in `scripts/block_commands.py`.
 
 The `gws` CLI has 15 blocked patterns covering Gmail, Calendar, Chat, Drive, Sheets, Tasks, Keep, Forms, Docs, Slides, Events, and Meet mutations, plus full-service blocks on Workflow and Classroom. See [gws-cli-blocking.md](gws-cli-blocking.md) for the full reference including threat model, access policy, and security analysis.
 
+## Blocked Paths
+
+A separate hook (`scripts/block_paths.py`) blocks access to sensitive directories and files across **all tools** (Read, Edit, Write, Glob, Grep, NotebookEdit, Bash). This complements command blocking by protecting at the path level.
+
+### Blocked Directories
+
+| Pattern | Description | Rationale |
+|---------|-------------|-----------|
+| `~/.ssh(/\|$)` | SSH keys and config | Encrypted credential store (encfs) |
+| `~/.aws(/\|$)` | AWS credentials and config | Encrypted credential store (encfs) |
+| `~/.kube(/\|$)` | Kubernetes config | Encrypted credential store (encfs) |
+| `~/.ocm(/\|$)` | OCM credentials | Encrypted credential store (encfs) |
+
+### Blocked Files
+
+| Pattern | Description | Rationale |
+|---------|-------------|-----------|
+| `~/.claude/.*credentials` | Credentials files under ~/.claude | Sensitive authentication data |
+
+### How It Works
+
+- **Structured tools** (Read, Edit, Write, Glob, Grep, NotebookEdit): path fields are extracted and resolved against the working directory
+- **Bash tool**: `~/` and `$HOME/` are expanded, tokens are extracted, and each is resolved against `cwd`
+- **Other tools**: pass through without checks
+
+Directory patterns use `(/|$)` to match the directory itself and anything beneath it, without matching near-misses like `~/.ssh-backup`.
+
+### Adding a Rule
+
+Add a `(compiled_regex, description)` tuple to `BLOCKED_PATH_PATTERNS` in `scripts/block_paths.py`:
+
+```python
+(re.compile(rf"^{_HOME}/\.new_dir(/|$)"), "~/.new_dir"),
+```
+
 ## Excluded Commands (Not Blocked)
 
 | Command | Why Excluded |

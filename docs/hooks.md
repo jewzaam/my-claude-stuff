@@ -19,6 +19,7 @@ Configuration lives in `claude/settings.json` under the `hooks` key.
 | Event | Script | Purpose |
 |-------|--------|---------|
 | `PreToolUse` (Bash) | `block_commands.py` | Block destructive commands. See `docs/block-commands-design.md` for details. |
+| `PreToolUse` (all) | `block_paths.py` | Block access to sensitive directories (~/.ssh, ~/.aws, ~/.kube, ~/.ocm) and credential files. See `docs/blocked-commands-reference.md` for details. |
 | `Notification` | `notify.py` | Desktop notifications for permission prompts and input dialogs |
 | `Stop` | `notify.py` | Desktop notification when task completes |
 | `Stop` | `prompt_log.py` | Log Claude's response to JSONL |
