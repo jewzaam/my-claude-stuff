@@ -22,6 +22,9 @@ Blocked categories:
            cipher /w, Remove-Item -Recurse, reg delete
   PowerShell: Format-Volume, Clear-Disk, Remove-Partition
   Cross-platform: curl/wget piped to sh/bash (presplit)
+  GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
+           Keep, Forms (writes), Classroom (all), Meet (mutations),
+           Workflow/Events (egress helpers)
 """
 
 import json
@@ -145,6 +148,150 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bFormat-Volume\b", re.IGNORECASE), "Format-Volume"),
     (re.compile(r"\bClear-Disk\b", re.IGNORECASE), "Clear-Disk"),
     (re.compile(r"\bRemove-Partition\b", re.IGNORECASE), "Remove-Partition"),
+    # GWS CLI mutation blocking (defense-in-depth alongside OAuth scope control)
+    # Gmail: NEVER allow mutations — primary email egress risk
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+gmail\s+"
+            r"\+(?:send|reply|reply-all|forward|watch)\b"
+        ),
+        "gws gmail (helper mutation)",
+    ),
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+gmail\s+"
+            r"(?:messages\s+(?:send|import|insert|delete|batchDelete"
+            r"|trash|untrash|modify|batchModify)"
+            r"|drafts\s+(?:create|send|update|delete)"
+            r"|labels\s+(?:create|delete|patch|update)"
+            r"|settings\s+.*\b(?:create|update|delete|patch)"
+            r"|watch|stop)\b"
+        ),
+        "gws gmail (API mutation)",
+    ),
+    # Calendar: NEVER allow mutations — external meeting invites
+    (
+        re.compile(rf"{_ENV}{_PATH}gws{_EXE}\s+calendar\s+\+insert\b"),
+        "gws calendar (helper mutation)",
+    ),
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+calendar\s+"
+            r"(?:events\s+(?:insert|delete|import|move|patch|quickAdd|update|watch)"
+            r"|acl\s+(?:insert|delete|patch|update)"
+            r"|calendars\s+(?:insert|delete|patch|update|clear)"
+            r"|calendarList\s+(?:insert|delete|patch|update)"
+            r"|channels\s+stop)\b"
+        ),
+        "gws calendar (API mutation)",
+    ),
+    # Chat: NEVER — all egress blocked
+    (
+        re.compile(rf"{_ENV}{_PATH}gws{_EXE}\s+chat\s+\+send\b"),
+        "gws chat (helper egress)",
+    ),
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+chat\s+"
+            r"(?:spaces\s+(?:create|setup|patch|delete|completeImport)"
+            r"|messages\s+(?:create|delete|patch|update)"
+            r"|members\s+(?:create|delete)"
+            r"|customEmojis\s+(?:create|delete))\b"
+        ),
+        "gws chat (API mutation)",
+    ),
+    # Drive: block all file mutations and permissions
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+drive\s+"
+            r"(?:\+upload"
+            r"|files\s+(?:create|copy|delete|update|emptyTrash|modifyLabels)"
+            r"|permissions\s+(?:create|update|delete)"
+            r"|comments\s+(?:create|update|delete)"
+            r"|replies\s+(?:create|update|delete)"
+            r"|drives\s+(?:create|delete|update|hide|unhide)"
+            r"|channels\s+stop)\b"
+        ),
+        "gws drive (mutation)",
+    ),
+    # Sheets: block all writes (indirect exfil via shared sheets)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+sheets\s+"
+            r"(?:\+append"
+            r"|spreadsheets\s+(?:create|batchUpdate)"
+            r"|values\s+(?:append|update|batchUpdate|clear|batchClear"
+            r"|batchClearByDataFilter|batchUpdateByDataFilter)"
+            r"|sheets\s+copyTo)\b"
+        ),
+        "gws sheets (write)",
+    ),
+    # Tasks: block writes
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+tasks\s+"
+            r"(?:tasks\s+(?:insert|delete|patch|update|clear|move)"
+            r"|tasklists\s+(?:insert|delete|patch|update))\b"
+        ),
+        "gws tasks (write)",
+    ),
+    # Keep: block writes
+    (
+        re.compile(rf"{_ENV}{_PATH}gws{_EXE}\s+keep\s+" r"notes\s+(?:create|delete)\b"),
+        "gws keep (write)",
+    ),
+    # Forms: block writes
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+forms\s+" r"forms\s+(?:create|batchUpdate)\b"
+        ),
+        "gws forms (write)",
+    ),
+    # Docs: block writes (batch payloads obscure scope, indirect exfil via shared docs)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+docs\s+" r"documents\s+(?:create|batchUpdate)\b"
+        ),
+        "gws docs (write)",
+    ),
+    # Slides: block writes (same rationale as Docs)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+slides\s+"
+            r"presentations\s+(?:create|batchUpdate)\b"
+        ),
+        "gws slides (write)",
+    ),
+    # Workflow: block egress helpers only (via workflow or wf alias)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+(?:workflow|wf)\s+"
+            r"\+(?:file-announce|email-to-task)\b"
+        ),
+        "gws workflow (egress)",
+    ),
+    # Events: block subscriptions (push notification channels)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+events\s+"
+            r"(?:\+(?:subscribe|renew)"
+            r"|subscriptions\s+(?:create|patch|delete))\b"
+        ),
+        "gws events (subscription)",
+    ),
+    # Classroom: block entire service
+    (
+        re.compile(rf"{_ENV}{_PATH}gws{_EXE}\s+classroom\b"),
+        "gws classroom",
+    ),
+    # Meet: block mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gws{_EXE}\s+meet\s+"
+            r"spaces\s+(?:create|patch|endActiveConference)\b"
+        ),
+        "gws meet (mutation)",
+    ),
 ]
 
 

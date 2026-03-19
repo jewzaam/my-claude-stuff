@@ -690,6 +690,354 @@ class TestPresplitPatterns:
         assert block_commands.check_command(command) is None
 
 
+class TestGwsGmailBlocked:
+    """Gmail mutations must be blocked — primary email egress risk."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws gmail +send", "gws gmail (helper mutation)"),
+            ("gws gmail +reply", "gws gmail (helper mutation)"),
+            ("gws gmail +reply-all", "gws gmail (helper mutation)"),
+            ("gws gmail +forward", "gws gmail (helper mutation)"),
+            ("gws gmail +watch", "gws gmail (helper mutation)"),
+            ("gws gmail messages send", "gws gmail (API mutation)"),
+            ("gws gmail messages delete", "gws gmail (API mutation)"),
+            ("gws gmail messages batchDelete", "gws gmail (API mutation)"),
+            ("gws gmail messages trash", "gws gmail (API mutation)"),
+            ("gws gmail messages modify", "gws gmail (API mutation)"),
+            ("gws gmail messages import", "gws gmail (API mutation)"),
+            ("gws gmail drafts create", "gws gmail (API mutation)"),
+            ("gws gmail drafts send", "gws gmail (API mutation)"),
+            ("gws gmail labels create", "gws gmail (API mutation)"),
+            ("gws gmail labels delete", "gws gmail (API mutation)"),
+            ("gws gmail settings sendAs create", "gws gmail (API mutation)"),
+            ("gws gmail watch", "gws gmail (API mutation)"),
+            ("gws gmail stop", "gws gmail (API mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsGmailAllowed:
+    """Gmail read-only operations must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gws gmail messages list",
+            "gws gmail messages get msg123",
+            "gws gmail labels list",
+            "gws gmail labels get label123",
+            "gws gmail drafts list",
+            "gws gmail drafts get draft123",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGwsCalendarBlocked:
+    """Calendar mutations must be blocked — external meeting invites."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws calendar +insert", "gws calendar (helper mutation)"),
+            ("gws calendar events insert", "gws calendar (API mutation)"),
+            ("gws calendar events delete", "gws calendar (API mutation)"),
+            ("gws calendar events patch", "gws calendar (API mutation)"),
+            ("gws calendar events quickAdd", "gws calendar (API mutation)"),
+            ("gws calendar events update", "gws calendar (API mutation)"),
+            ("gws calendar acl insert", "gws calendar (API mutation)"),
+            ("gws calendar calendars delete", "gws calendar (API mutation)"),
+            ("gws calendar channels stop", "gws calendar (API mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsCalendarAllowed:
+    """Calendar read-only operations must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gws calendar +agenda",
+            "gws calendar events list",
+            "gws calendar events get evt123",
+            "gws calendar events instances evt123",
+            "gws calendar calendarList list",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGwsChatBlocked:
+    """Chat egress must be blocked entirely."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws chat +send", "gws chat (helper egress)"),
+            ("gws chat spaces create", "gws chat (API mutation)"),
+            ("gws chat messages create", "gws chat (API mutation)"),
+            ("gws chat members create", "gws chat (API mutation)"),
+            ("gws chat customEmojis create", "gws chat (API mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsDriveBlocked:
+    """Drive file mutations and permissions must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws drive +upload", "gws drive (mutation)"),
+            ("gws drive files create", "gws drive (mutation)"),
+            ("gws drive files copy", "gws drive (mutation)"),
+            ("gws drive files delete", "gws drive (mutation)"),
+            ("gws drive files update", "gws drive (mutation)"),
+            ("gws drive files emptyTrash", "gws drive (mutation)"),
+            ("gws drive files modifyLabels", "gws drive (mutation)"),
+            ("gws drive permissions create", "gws drive (mutation)"),
+            ("gws drive permissions delete", "gws drive (mutation)"),
+            ("gws drive comments create", "gws drive (mutation)"),
+            ("gws drive channels stop", "gws drive (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsDriveAllowed:
+    """Drive read-only operations must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gws drive files list",
+            "gws drive files get file123",
+            "gws drive +download",
+            "gws drive +export",
+            "gws drive permissions list",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGwsSheetsBlocked:
+    """Sheets writes must be blocked — indirect exfil via shared sheets."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws sheets +append", "gws sheets (write)"),
+            ("gws sheets values append", "gws sheets (write)"),
+            ("gws sheets values update", "gws sheets (write)"),
+            ("gws sheets values batchUpdate", "gws sheets (write)"),
+            ("gws sheets values clear", "gws sheets (write)"),
+            ("gws sheets spreadsheets create", "gws sheets (write)"),
+            ("gws sheets spreadsheets batchUpdate", "gws sheets (write)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsSheetsAllowed:
+    """Sheets read-only operations must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gws sheets +read",
+            "gws sheets values get",
+            "gws sheets values batchGet",
+            "gws sheets spreadsheets get",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGwsTasksBlocked:
+    """Tasks writes must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws tasks tasks insert", "gws tasks (write)"),
+            ("gws tasks tasks delete", "gws tasks (write)"),
+            ("gws tasks tasks patch", "gws tasks (write)"),
+            ("gws tasks tasklists insert", "gws tasks (write)"),
+            ("gws tasks tasklists delete", "gws tasks (write)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsKeepBlocked:
+    """Keep writes must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws keep notes create", "gws keep (write)"),
+            ("gws keep notes delete", "gws keep (write)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsFormsBlocked:
+    """Forms writes must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws forms forms create", "gws forms (write)"),
+            ("gws forms forms batchUpdate", "gws forms (write)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsWorkflowBlocked:
+    """Workflow egress helpers must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws workflow +file-announce", "gws workflow (egress)"),
+            ("gws wf +email-to-task", "gws workflow (egress)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsWorkflowAllowed:
+    """Workflow non-egress helpers must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gws workflow +standup-report",
+            "gws workflow +meeting-prep",
+            "gws wf +weekly-digest",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGwsDocsBlocked:
+    """Docs writes must be blocked — batch payloads obscure scope."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws docs documents create", "gws docs (write)"),
+            ("gws docs documents batchUpdate", "gws docs (write)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    def test_read_allowed(self) -> None:
+        assert block_commands.check_command("gws docs documents get") is None
+
+
+class TestGwsSlidesBlocked:
+    """Slides writes must be blocked — same rationale as Docs."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws slides presentations create", "gws slides (write)"),
+            ("gws slides presentations batchUpdate", "gws slides (write)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    def test_read_allowed(self) -> None:
+        assert block_commands.check_command("gws slides presentations get") is None
+
+
+class TestGwsEventsBlocked:
+    """Events/subscriptions must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws events +subscribe", "gws events (subscription)"),
+            ("gws events +renew", "gws events (subscription)"),
+            ("gws events subscriptions create", "gws events (subscription)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsClassroomBlocked:
+    """Classroom — entire service blocked."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gws classroom courses list",
+            "gws classroom students list",
+        ],
+    )
+    def test_blocked(self, command: str) -> None:
+        assert block_commands.check_command(command) == "gws classroom"
+
+
+class TestGwsMeetBlocked:
+    """Meet mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gws meet spaces create", "gws meet (mutation)"),
+            ("gws meet spaces patch", "gws meet (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGwsPathVariants:
+    """GWS commands with path prefix, .exe suffix, env prefix."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("/usr/local/bin/gws gmail +send", "gws gmail (helper mutation)"),
+            ("gws.exe gmail messages send", "gws gmail (API mutation)"),
+            ("env gws gmail +send", "gws gmail (helper mutation)"),
+            (
+                "env -i /usr/bin/gws gmail messages delete",
+                "gws gmail (API mutation)",
+            ),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
 class TestMain:
     def test_blocked_command_exits_2(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = {"tool_input": {"command": "git push origin main"}}
