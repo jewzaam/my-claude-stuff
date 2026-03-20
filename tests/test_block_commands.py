@@ -91,6 +91,22 @@ class TestCheckCommand:
     def test_allowed_commands(self, command: str) -> None:
         assert block_commands.check_command(command) is None
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git -C /some/path status",
+            "git -C /some/path log --oneline",
+            "git -C /some/path diff",
+            "git -C /some/path branch",
+            "/usr/bin/git -C /repo status",
+            "env git -C /repo log",
+        ],
+    )
+    def test_git_dash_c_blocked(self, command: str) -> None:
+        result = block_commands.check_command(command)
+        assert result is not None
+        assert "git -C" in result
+
     def test_su_standalone(self) -> None:
         assert block_commands.check_command("su") == "su"
         assert block_commands.check_command("su -") == "su"
@@ -157,18 +173,8 @@ class TestCheckCommand:
     @pytest.mark.parametrize(
         "command,expected",
         [
-            ("git -C /some/path add foo", "git add"),
-            ("git -C /some/path push origin main", "git push"),
-            ("/usr/bin/git -C /some/path add foo", "git add"),
             ("git --git-dir=/tmp/.git add .", "git add"),
             ("git -c user.name=test push", "git push"),
-            ("git -C /path --work-tree=/tmp add file.txt", "git add"),
-            ("git -C /path reset --hard", "git reset"),
-            ("git -C /path clean -fd", "git clean"),
-            ("git -C /path branch -D foo", "git branch (destructive)"),
-            ("git -C /path stash drop", "git stash"),
-            ("git -C /path commit -a", "git commit (--amend/-a)"),
-            ("git -C /path commit --amend", "git commit (--amend/-a)"),
         ],
     )
     def test_git_flags_before_subcommand_blocked(
@@ -247,7 +253,6 @@ class TestCheckCommand:
             ("git checkout -- .", "git checkout -- (discard)"),
             ("/usr/bin/git checkout -- file.txt", "git checkout -- (discard)"),
             ("git.exe checkout -- file.txt", "git checkout -- (discard)"),
-            ("git -C /path checkout -- file.txt", "git checkout -- (discard)"),
         ],
     )
     def test_git_checkout_discard_blocked(self, command: str, expected: str) -> None:
@@ -273,7 +278,6 @@ class TestCheckCommand:
             ("git restore .", "git restore (discard)"),
             ("/usr/bin/git restore file.txt", "git restore (discard)"),
             ("git.exe restore file.txt", "git restore (discard)"),
-            ("git -C /path restore file.txt", "git restore (discard)"),
         ],
     )
     def test_git_restore_discard_blocked(self, command: str, expected: str) -> None:

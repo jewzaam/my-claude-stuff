@@ -13,7 +13,8 @@ Preprocessing pipeline:
   5. Check each segment against BLOCKED_PATTERNS
 
 Blocked categories:
-  Git: add, push, reset, clean (except -n), branch (destructive flags only),
+  Git: -C flag (use plain git), add, push, reset, clean (except -n),
+       branch (destructive flags only),
        stash (except list/show), commit --amend/-a, checkout -- (discard),
        restore (except --staged)
   Unix: sudo, su, rm -r, make reconcile, find -delete, chmod 777, mkfs,
@@ -51,6 +52,11 @@ PRESPLIT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    # git -C: unnecessary when already in the target directory; use plain git
+    (
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}\s+-C\b"),
+        "git -C (you are already in the repo directory — use git without -C)",
+    ),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+add\b"), "git add"),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+push\b"), "git push"),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+reset\b"), "git reset"),
