@@ -14,13 +14,12 @@ Freshness indicator shows age and fetch status:
   (2m)  = data is 2 minutes old, last fetch succeeded
   (!5m) = data is 5 minutes old, last fetch failed
 
-Session cost (Vertex only) from Claude Code stdin.
+Session cost from Claude Code stdin (cost.total_cost_usd).
 """
 
 import json
 import logging
 import logging.handlers
-import os
 import sys
 import time
 import urllib.request
@@ -282,21 +281,32 @@ def main():
         else:
             parts.append(f"({age_str})")
 
-    is_vertex = bool(os.environ.get("CLAUDE_CODE_USE_VERTEX"))
+    # When invoked directly (python3 path/to/statusline.py), the parent
+    # of scripts/ must be on sys.path for the package import to work.
+    _scripts_parent = str(Path(__file__).resolve().parent.parent)
+    if _scripts_parent not in sys.path:
+        sys.path.insert(0, _scripts_parent)
+    from scripts.session_tracker import get_daily_cost, get_project_cost, track_session
 
-    if is_vertex:
-        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-        from scripts.session_tracker import get_daily_cost, track_session
+    track_session(data)
+    cost = (data.get("cost") or {}).get("total_cost_usd")
+    parts.append(f"Session: ${cost:.2f}" if cost is not None else "Session: $0.00")
+    daily = get_daily_cost()
+    parts.append(f"Today: ${daily:.2f}")
 
-        track_session(data)
-        cost = (data.get("cost") or {}).get("total_cost_usd")
-        parts.append(f"Session: ${cost:.2f}" if cost is not None else "Session: $0.00")
-        daily = get_daily_cost()
-        parts.append(f"Today: ${daily:.2f}")
+    project_dir = (data.get("workspace") or {}).get("project_dir")
+    if project_dir:
+        proj_cost = get_project_cost(project_dir)
+        parts.append(f"Project: ${proj_cost:.2f}")
 
     parts.append(f"Model: {model}")
     print(" | ".join(parts))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        _configure_logging()
+        logger.exception("statusline crashed")
+        print(f"{ANSI_RED}!ERR check {LOG_FILE}{ANSI_RESET}")

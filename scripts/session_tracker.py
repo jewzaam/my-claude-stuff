@@ -17,9 +17,11 @@ Layout:
 import json
 import re
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 DEFAULT_DIR = Path.home() / ".claude" / "session-tracker"
+SESSION_FILE_SUFFIX = ".json"
+WORKTREE_DIR_NAME = "git-worktrees"
 
 
 def track_session(data, base_dir=DEFAULT_DIR):
@@ -35,11 +37,24 @@ def track_session(data, base_dir=DEFAULT_DIR):
     today_dir = Path(base_dir) / date.today().isoformat()
     try:
         today_dir.mkdir(parents=True, exist_ok=True)
-        session_file = today_dir / f"{session_id}.json"
+        session_file = today_dir / f"{session_id}{SESSION_FILE_SUFFIX}"
         with open(session_file, "w", encoding="utf-8") as fh:
             json.dump(data, fh)
     except OSError:
         pass
+
+
+def _normalize_project_dir(path):
+    """Normalize project_dir by stripping WORKTREE_DIR_NAME/<name> suffix.
+
+    If path contains the worktree directory, return the grandparent.
+    This ensures worktree sessions roll up to the main project.
+    """
+    parts = PurePosixPath(path).parts
+    for i, part in enumerate(parts):
+        if part == WORKTREE_DIR_NAME and i + 1 < len(parts):
+            return str(PurePosixPath(*parts[:i]))
+    return path
 
 
 def get_daily_cost(base_dir=DEFAULT_DIR):
@@ -50,7 +65,7 @@ def get_daily_cost(base_dir=DEFAULT_DIR):
 
     total = 0.0
     for session_file in today_dir.iterdir():
-        if not session_file.suffix == ".json":
+        if session_file.suffix != SESSION_FILE_SUFFIX:
             continue
         try:
             with open(session_file, "r", encoding="utf-8") as fh:
@@ -58,4 +73,35 @@ def get_daily_cost(base_dir=DEFAULT_DIR):
             total += (data.get("cost") or {}).get("total_cost_usd", 0.0)
         except (json.JSONDecodeError, OSError):
             continue
+    return total
+
+
+def get_project_cost(project_dir, base_dir=DEFAULT_DIR):
+    """Sum cost.total_cost_usd across ALL dates for sessions matching project_dir.
+
+    Normalizes project_dir (stripping git-worktrees suffixes) before comparison.
+    """
+    base = Path(base_dir)
+    if not base.is_dir():
+        return 0.0
+
+    normalized_query = _normalize_project_dir(project_dir)
+    total = 0.0
+
+    for date_dir in base.iterdir():
+        if not date_dir.is_dir():
+            continue
+        for session_file in date_dir.iterdir():
+            if session_file.suffix != SESSION_FILE_SUFFIX:
+                continue
+            try:
+                with open(session_file, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                session_project = (data.get("workspace") or {}).get("project_dir")
+                if not session_project:
+                    continue
+                if _normalize_project_dir(session_project) == normalized_query:
+                    total += (data.get("cost") or {}).get("total_cost_usd", 0.0)
+            except (json.JSONDecodeError, OSError):
+                continue
     return total
