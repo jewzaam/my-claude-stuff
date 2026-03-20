@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-This repo uses Claude Code hooks to block destructive commands, send desktop notifications, and log prompts/responses. All hooks are configured in `claude/settings.json` and deployed via `make reconcile`.
+This repo uses Claude Code hooks to block destructive commands, send desktop notifications, and log prompts/responses/questions. All hooks are configured in `claude/settings.json` and deployed via `make reconcile`.
 
 ## What Are Hooks
 
@@ -22,6 +22,7 @@ Configuration lives in `claude/settings.json` under the `hooks` key.
 | `PreToolUse` (all) | `block_paths.py` | Block access to sensitive directories (~/.ssh, ~/.aws, ~/.kube, ~/.ocm) and credential files. See `docs/blocked-commands-reference.md` for details. |
 | `Notification` | `notify.py` | Desktop notifications for permission prompts and input dialogs |
 | `Stop` | `notify.py` | Desktop notification when task completes |
+| `PostToolUse` (AskUserQuestion) | `prompt_log.py` | Log questions asked and user's answers to JSONL |
 | `Stop` | `prompt_log.py` | Log Claude's response to JSONL |
 | `UserPromptSubmit` | `prompt_log.py` | Log user's prompt to JSONL |
 
@@ -37,7 +38,7 @@ Non-actionable events (idle_prompt, auth_success) are silently ignored. Platform
 
 ## Prompt Log Hook (`scripts/prompt_log.py`)
 
-Logs all user prompts and Claude responses as structured JSONL data for session reconstruction.
+Logs user prompts, Claude responses, and question/answer exchanges as structured JSONL data for session reconstruction.
 
 ### Storage Layout
 
@@ -49,7 +50,9 @@ Logs all user prompts and Claude responses as structured JSONL data for session 
 
 ### JSONL Schema
 
-Each line contains:
+Each line contains one of two schemas:
+
+**Prompt/Response entries** (`event_type`: `prompt` or `response`):
 
 | Field | Description |
 |-------|-------------|
@@ -59,6 +62,19 @@ Each line contains:
 | `working_dir` | Working directory at time of event |
 | `git_branch` | Current git branch (empty if not in a repo) |
 | `content` | The prompt text or response text |
+
+**Question entries** (`event_type`: `question`):
+
+| Field | Description |
+|-------|-------------|
+| `timestamp` | ISO 8601 timestamp (UTC) |
+| `event_type` | `question` |
+| `session_id` | Claude Code session identifier |
+| `working_dir` | Working directory at time of event |
+| `git_branch` | Current git branch (empty if not in a repo) |
+| `question` | The question asked by Claude |
+| `options` | Options with label and description (omitted if free-form) |
+| `answer` | The user's response |
 
 ### Design Decisions
 
