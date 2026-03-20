@@ -19,7 +19,7 @@ import shlex
 import sys
 from pathlib import Path
 
-_HOME = re.escape(str(Path.home()))
+_HOME = re.escape(Path.home().as_posix())
 
 BLOCKED_PATH_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(rf"^{_HOME}/\.ssh(/|$)"), "~/.ssh"),
@@ -48,7 +48,7 @@ def resolve_path(candidate: str, cwd: str) -> str:
     p = Path(os.path.expandvars(candidate)).expanduser()
     if not p.is_absolute():
         p = Path(cwd) / p
-    return str(p.resolve())
+    return p.resolve().as_posix()
 
 
 def check_path(resolved: str) -> str | None:
