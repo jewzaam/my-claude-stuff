@@ -13,7 +13,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "scripts
 
 import block_paths  # noqa: E402
 
-HOME = str(pathlib.Path.home())
+HOME = pathlib.Path.home().as_posix()
 
 
 class TestCheckPath:
@@ -66,8 +66,9 @@ class TestResolvePath:
     """Test path resolution logic."""
 
     def test_absolute_unchanged(self) -> None:
-        result = block_paths.resolve_path("/usr/local/bin", "/tmp")
-        assert result == "/usr/local/bin"
+        abs_path = f"{HOME}/some/absolute/path"
+        result = block_paths.resolve_path(abs_path, "/tmp")
+        assert result == abs_path
 
     def test_tilde_expansion(self) -> None:
         result = block_paths.resolve_path("~/.ssh/config", "/tmp")
@@ -82,8 +83,8 @@ class TestResolvePath:
         assert result == f"{HOME}/.ssh/id_rsa"
 
     def test_relative_with_subdir(self) -> None:
-        result = block_paths.resolve_path("sub/file.txt", "/tmp/project")
-        assert result == "/tmp/project/sub/file.txt"
+        result = block_paths.resolve_path("sub/file.txt", f"{HOME}/project")
+        assert result == f"{HOME}/project/sub/file.txt"
 
     def test_dot_dot_normalized(self) -> None:
         result = block_paths.resolve_path("../secret", f"{HOME}/.ssh/keys")
@@ -107,9 +108,9 @@ class TestExtractPathsStructured:
 
     def test_write_file_path(self) -> None:
         paths = block_paths.extract_paths_structured(
-            "Write", {"file_path": "/tmp/safe.txt"}, "/tmp"
+            "Write", {"file_path": f"{HOME}/safe.txt"}, f"{HOME}"
         )
-        assert paths == ["/tmp/safe.txt"]
+        assert paths == [f"{HOME}/safe.txt"]
 
     def test_glob_pattern_and_path(self) -> None:
         paths = block_paths.extract_paths_structured(
@@ -128,9 +129,9 @@ class TestExtractPathsStructured:
 
     def test_notebook_edit(self) -> None:
         paths = block_paths.extract_paths_structured(
-            "NotebookEdit", {"notebook_path": "/tmp/notebook.ipynb"}, "/tmp"
+            "NotebookEdit", {"notebook_path": f"{HOME}/notebook.ipynb"}, f"{HOME}"
         )
-        assert paths == ["/tmp/notebook.ipynb"]
+        assert paths == [f"{HOME}/notebook.ipynb"]
 
     def test_unknown_tool_returns_empty(self) -> None:
         paths = block_paths.extract_paths_structured(
@@ -179,8 +180,9 @@ class TestExtractPathsBash:
         assert any(p == f"{HOME}/.ssh/id_rsa" for p in ssh_paths)
 
     def test_flags_skipped(self) -> None:
-        paths = block_paths.extract_paths_bash("ls -la /tmp/safe", "/tmp")
-        assert "/tmp/safe" in paths
+        safe_path = f"{HOME}/safe"
+        paths = block_paths.extract_paths_bash(f"ls -la {safe_path}", f"{HOME}")
+        assert safe_path in paths
         # -la should not appear as a resolved path containing .ssh etc.
         for p in paths:
             assert not p.endswith("-la")

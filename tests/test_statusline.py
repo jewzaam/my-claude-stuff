@@ -8,6 +8,7 @@ config files are ever read.
 
 import io
 import json
+import re
 import time
 
 import pytest
@@ -474,7 +475,8 @@ class TestMain:
             lambda: (usage, age, stale),
         )
         statusline.main()
-        return capsys.readouterr().out.strip()
+        raw = capsys.readouterr().out.strip()
+        return re.sub(r"\033\[[0-9;]*m", "", raw)
 
     def test_invalid_stdin(self, monkeypatch, capsys):
         monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
