@@ -28,6 +28,11 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
+ANSI_RED = "\033[31m"
+ANSI_YELLOW = "\033[33m"
+ANSI_GREEN = "\033[32m"
+ANSI_RESET = "\033[0m"
+
 USAGE_CACHE_TTL_SECONDS = 120
 USAGE_CACHE_DIR = Path.home() / ".claude" / "statusline-cache"
 USAGE_CACHE_FILE = USAGE_CACHE_DIR / "oauth_usage.json"
@@ -83,6 +88,23 @@ def format_duration(seconds):
     if secs or not parts:
         parts.append(f"{secs}s")
     return "".join(parts[:2])
+
+
+def colorize_pct(pct):
+    """Return pct formatted as a string with ANSI color based on magnitude.
+
+    Green  < 50%
+    Yellow 50-79%
+    Red    >= 80%
+    """
+    value = f"{pct:.0f}%"
+    if pct >= 80:
+        color = ANSI_RED
+    elif pct >= 50:
+        color = ANSI_YELLOW
+    else:
+        color = ANSI_GREEN
+    return f"{color}{value}{ANSI_RESET}"
 
 
 def format_remaining(resets_at):
@@ -238,7 +260,7 @@ def main():
     ctx = data.get("context_window", {})
     used_pct = ctx.get("used_percentage")
     if used_pct is not None:
-        parts.append(f"Context: {used_pct}%")
+        parts.append(f"Context: {colorize_pct(used_pct)}")
 
     usage, age_seconds, stale = get_usage()
     if usage:
@@ -252,11 +274,11 @@ def main():
             label = format_remaining(entry.get("resets_at"))
             if label is None:
                 label = "5h" if bucket == "five_hour" else "1w"
-            parts.append(f"{label}: {pct:.0f}%")
+            parts.append(f"{label}: {colorize_pct(pct)}")
 
         age_str = format_duration(age_seconds)
         if stale:
-            parts.append(f"(!{age_str})")
+            parts.append(f"({ANSI_RED}!{age_str}{ANSI_RESET})")
         else:
             parts.append(f"({age_str})")
 
