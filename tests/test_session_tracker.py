@@ -7,16 +7,24 @@ from datetime import date
 
 import pytest
 
-from scripts.session_tracker import get_daily_cost, track_session
+from scripts.session_tracker import (
+    _normalize_project_dir,
+    get_daily_cost,
+    get_project_cost,
+    track_session,
+)
 
 
-def _make_session_data(session_id="abc-123", cost_usd=1.50):
-    return {
+def _make_session_data(session_id="abc-123", cost_usd=1.50, project_dir=None):
+    data = {
         "session_id": session_id,
         "model": {"id": "claude-opus-4-6", "display_name": "Opus 4.6"},
         "cost": {"total_cost_usd": cost_usd},
         "context_window": {"used_percentage": 10},
     }
+    if project_dir is not None:
+        data["workspace"] = {"project_dir": project_dir}
+    return data
 
 
 class TestTrackSession:
@@ -146,3 +154,122 @@ class TestGetDailyCost:
 
         total = get_daily_cost(base_dir=tmp_path)
         assert total == pytest.approx(2.00)
+
+
+class TestNormalizeProjectDir:
+    def test_plain_path_unchanged(self):
+        path = "/home/user/source/myproject"
+        assert _normalize_project_dir(path) == path
+
+    def test_strips_worktree_suffix(self):
+        wt = "/home/user/source/myproject/git-worktrees/abc123"
+        assert _normalize_project_dir(wt) == "/home/user/source/myproject"
+
+    def test_no_worktree_name_unchanged(self):
+        # git-worktrees at the end without a child stays as-is
+        path = "/home/user/git-worktrees"
+        assert _normalize_project_dir(path) == path
+
+
+class TestGetProjectCost:
+    def test_sums_across_dates(self, tmp_path):
+        # Create sessions in multiple date dirs
+        d1 = tmp_path / "2026-03-18"
+        d1.mkdir()
+        d2 = tmp_path / "2026-03-19"
+        d2.mkdir()
+
+        proj = "/home/user/myproject"
+        (d1 / "s1.json").write_text(
+            json.dumps(
+                _make_session_data(session_id="s1", cost_usd=2.00, project_dir=proj)
+            )
+        )
+        (d2 / "s2.json").write_text(
+            json.dumps(
+                _make_session_data(session_id="s2", cost_usd=3.50, project_dir=proj)
+            )
+        )
+
+        total = get_project_cost(proj, base_dir=tmp_path)
+        assert total == pytest.approx(5.50)
+
+    def test_filters_by_project_dir(self, tmp_path):
+        d = tmp_path / "2026-03-18"
+        d.mkdir()
+
+        (d / "s1.json").write_text(
+            json.dumps(
+                _make_session_data(
+                    session_id="s1", cost_usd=2.00, project_dir="/proj/a"
+                )
+            )
+        )
+        (d / "s2.json").write_text(
+            json.dumps(
+                _make_session_data(
+                    session_id="s2", cost_usd=5.00, project_dir="/proj/b"
+                )
+            )
+        )
+
+        assert get_project_cost("/proj/a", base_dir=tmp_path) == pytest.approx(2.00)
+        assert get_project_cost("/proj/b", base_dir=tmp_path) == pytest.approx(5.00)
+
+    def test_worktree_rollup(self, tmp_path):
+        d = tmp_path / "2026-03-18"
+        d.mkdir()
+
+        (d / "s1.json").write_text(
+            json.dumps(
+                _make_session_data(
+                    session_id="s1",
+                    cost_usd=4.00,
+                    project_dir="/home/user/myproject/git-worktrees/1234",
+                )
+            )
+        )
+        (d / "s2.json").write_text(
+            json.dumps(
+                _make_session_data(
+                    session_id="s2",
+                    cost_usd=1.00,
+                    project_dir="/home/user/myproject",
+                )
+            )
+        )
+
+        total = get_project_cost("/home/user/myproject", base_dir=tmp_path)
+        assert total == pytest.approx(5.00)
+
+    def test_returns_zero_for_unknown_project(self, tmp_path):
+        d = tmp_path / "2026-03-18"
+        d.mkdir()
+        (d / "s1.json").write_text(
+            json.dumps(
+                _make_session_data(
+                    session_id="s1", cost_usd=2.00, project_dir="/proj/a"
+                )
+            )
+        )
+
+        assert get_project_cost("/proj/unknown", base_dir=tmp_path) == 0.0
+
+    def test_handles_missing_workspace(self, tmp_path):
+        d = tmp_path / "2026-03-18"
+        d.mkdir()
+
+        # Session without workspace field
+        (d / "s1.json").write_text(
+            json.dumps(_make_session_data(session_id="s1", cost_usd=2.00))
+        )
+        # Session with workspace
+        (d / "s2.json").write_text(
+            json.dumps(
+                _make_session_data(
+                    session_id="s2", cost_usd=3.00, project_dir="/proj/a"
+                )
+            )
+        )
+
+        assert get_project_cost("/proj/a", base_dir=tmp_path) == pytest.approx(3.00)

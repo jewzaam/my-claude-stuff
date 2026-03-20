@@ -39,7 +39,6 @@ def isolate_paths(tmp_path, monkeypatch):
     creds_file = tmp_path / "credentials.json"
     monkeypatch.setattr(statusline, "USAGE_CACHE_FILE", cache_file)
     monkeypatch.setattr(statusline, "CREDENTIALS_FILE", creds_file)
-    monkeypatch.delenv("CLAUDE_CODE_USE_VERTEX", raising=False)
     return tmp_path, cache_file, creds_file
 
 
@@ -579,12 +578,12 @@ class TestMain:
         output = self._run_main(monkeypatch, capsys, {})
         assert "Model: Claude" in output
 
-    def test_vertex_mode(self, monkeypatch, capsys):
-        monkeypatch.setenv("CLAUDE_CODE_USE_VERTEX", "1")
+    def test_cost_display(self, monkeypatch, capsys, tmp_path):
         data = {
             **SAMPLE_STDIN,
             "cost": {"total_cost_usd": 1.50},
             "session_id": "test-session",
+            "workspace": {"project_dir": str(tmp_path)},
         }
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(data)))
         monkeypatch.setattr(
@@ -598,6 +597,7 @@ class TestMain:
         mock_tracker = types.ModuleType("session_tracker")
         mock_tracker.track_session = lambda data: None
         mock_tracker.get_daily_cost = lambda: 5.25
+        mock_tracker.get_project_cost = lambda project_dir: 42.00
         monkeypatch.setitem(
             __import__("sys").modules,
             "scripts.session_tracker",
@@ -608,9 +608,9 @@ class TestMain:
         output = capsys.readouterr().out.strip()
         assert "Session: $1.50" in output
         assert "Today: $5.25" in output
+        assert "Project: $42.00" in output
 
-    def test_no_cost_in_vertex(self, monkeypatch, capsys):
-        monkeypatch.setenv("CLAUDE_CODE_USE_VERTEX", "1")
+    def test_no_cost_shows_zero(self, monkeypatch, capsys):
         monkeypatch.setattr(
             "sys.stdin",
             io.StringIO(json.dumps(SAMPLE_STDIN)),
@@ -626,6 +626,7 @@ class TestMain:
         mock_tracker = types.ModuleType("session_tracker")
         mock_tracker.track_session = lambda data: None
         mock_tracker.get_daily_cost = lambda: 0.0
+        mock_tracker.get_project_cost = lambda project_dir: 0.0
         monkeypatch.setitem(
             __import__("sys").modules,
             "scripts.session_tracker",
@@ -636,15 +637,35 @@ class TestMain:
         output = capsys.readouterr().out.strip()
         assert "Session: $0.00" in output
 
-    def test_no_session_cost_without_vertex(self, monkeypatch, capsys):
-        output = self._run_main(
-            monkeypatch,
-            capsys,
-            SAMPLE_STDIN,
-            usage=SAMPLE_USAGE_RESPONSE,
+    def test_project_cost_displayed(self, monkeypatch, capsys, tmp_path):
+        data = {
+            **SAMPLE_STDIN,
+            "cost": {"total_cost_usd": 0.50},
+            "session_id": "s1",
+            "workspace": {"project_dir": str(tmp_path)},
+        }
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(data)))
+        monkeypatch.setattr(
+            statusline,
+            "get_usage",
+            lambda: (None, 0, False),
         )
-        assert "Session:" not in output
-        assert "Today:" not in output
+
+        import types
+
+        mock_tracker = types.ModuleType("session_tracker")
+        mock_tracker.track_session = lambda data: None
+        mock_tracker.get_daily_cost = lambda: 1.00
+        mock_tracker.get_project_cost = lambda project_dir: 245.00
+        monkeypatch.setitem(
+            __import__("sys").modules,
+            "scripts.session_tracker",
+            mock_tracker,
+        )
+
+        statusline.main()
+        output = capsys.readouterr().out.strip()
+        assert "Project: $245.00" in output
 
     def test_null_usage_fields(self, monkeypatch, capsys):
         usage = {
