@@ -76,6 +76,192 @@ class TestGitBranch:
             assert prompt_log._git_branch("/some/path") == ""
 
 
+class TestExtractQuestionEntry:
+    def test_question_with_options(self):
+        data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "AskUserQuestion",
+            "session_id": "abc-123",
+            "cwd": "/home/user/project",
+            "tool_input": {
+                "questions": [
+                    {
+                        "question": "Which approach?",
+                        "header": "Approach",
+                        "options": [
+                            {"label": "Option A", "description": "First"},
+                            {"label": "Option B", "description": "Second"},
+                        ],
+                        "multiSelect": False,
+                    }
+                ],
+                "answers": {"Which approach?": "Option A"},
+            },
+        }
+        with mock.patch("prompt_log._git_branch", return_value="main"):
+            result = prompt_log._extract_entry(data)
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        entry = result[0]
+        assert entry["event_type"] == "question"
+        assert entry["question"] == "Which approach?"
+        assert entry["options"] == [
+            {"label": "Option A", "description": "First"},
+            {"label": "Option B", "description": "Second"},
+        ]
+        assert entry["answer"] == "Option A"
+        assert entry["session_id"] == "abc-123"
+        assert entry["git_branch"] == "main"
+
+    def test_question_without_options(self):
+        data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "AskUserQuestion",
+            "session_id": "abc-123",
+            "cwd": "/home/user/project",
+            "tool_input": {
+                "questions": [
+                    {
+                        "question": "What should I do?",
+                        "header": "Action",
+                        "options": [],
+                        "multiSelect": False,
+                    }
+                ],
+                "answers": {"What should I do?": "Just do it"},
+            },
+        }
+        with mock.patch("prompt_log._git_branch", return_value="main"):
+            result = prompt_log._extract_entry(data)
+
+        assert isinstance(result, list)
+        entry = result[0]
+        assert entry["event_type"] == "question"
+        assert entry["question"] == "What should I do?"
+        assert "options" not in entry
+        assert entry["answer"] == "Just do it"
+
+    def test_multiple_questions(self):
+        data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "AskUserQuestion",
+            "session_id": "abc-123",
+            "cwd": "/home/user/project",
+            "tool_input": {
+                "questions": [
+                    {
+                        "question": "Q1?",
+                        "header": "First",
+                        "options": [
+                            {"label": "A", "description": "a"},
+                            {"label": "B", "description": "b"},
+                        ],
+                        "multiSelect": False,
+                    },
+                    {
+                        "question": "Q2?",
+                        "header": "Second",
+                        "options": [
+                            {"label": "X", "description": "x"},
+                            {"label": "Y", "description": "y"},
+                        ],
+                        "multiSelect": False,
+                    },
+                ],
+                "answers": {"Q1?": "A", "Q2?": "Y"},
+            },
+        }
+        with mock.patch("prompt_log._git_branch", return_value="main"):
+            result = prompt_log._extract_entry(data)
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["question"] == "Q1?"
+        assert result[0]["answer"] == "A"
+        assert result[1]["question"] == "Q2?"
+        assert result[1]["answer"] == "Y"
+
+    def test_question_with_string_tool_input(self):
+        data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "AskUserQuestion",
+            "session_id": "abc-123",
+            "cwd": "/home/user/project",
+            "tool_input": json.dumps(
+                {
+                    "questions": [
+                        {
+                            "question": "Pick one",
+                            "options": [{"label": "A"}, {"label": "B"}],
+                        }
+                    ],
+                    "answers": {"Pick one": "B"},
+                }
+            ),
+        }
+        with mock.patch("prompt_log._git_branch", return_value="main"):
+            result = prompt_log._extract_entry(data)
+
+        assert isinstance(result, list)
+        entry = result[0]
+        assert entry["question"] == "Pick one"
+        assert entry["options"] == [
+            {"label": "A", "description": ""},
+            {"label": "B", "description": ""},
+        ]
+        assert entry["answer"] == "B"
+
+    def test_question_with_invalid_string_tool_input(self):
+        data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "AskUserQuestion",
+            "session_id": "abc-123",
+            "cwd": "/home/user/project",
+            "tool_input": "not json",
+        }
+        with mock.patch("prompt_log._git_branch", return_value="main"):
+            result = prompt_log._extract_entry(data)
+
+        assert result is None
+
+    def test_post_tool_use_non_ask_user_returns_none(self):
+        data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "session_id": "abc-123",
+            "cwd": "/home/user/project",
+        }
+        assert prompt_log._extract_entry(data) is None
+
+    def test_question_missing_answer(self):
+        data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "AskUserQuestion",
+            "session_id": "abc-123",
+            "cwd": "/home/user/project",
+            "tool_input": {
+                "questions": [
+                    {
+                        "question": "Yes or no?",
+                        "header": "Confirm",
+                        "options": [
+                            {"label": "Yes", "description": "y"},
+                            {"label": "No", "description": "n"},
+                        ],
+                        "multiSelect": False,
+                    }
+                ],
+                "answers": {},
+            },
+        }
+        with mock.patch("prompt_log._git_branch", return_value="main"):
+            result = prompt_log._extract_entry(data)
+
+        assert isinstance(result, list)
+        assert result[0]["answer"] == ""
+
+
 class TestExtractEntry:
     def test_prompt_event(self):
         data = {
@@ -273,6 +459,46 @@ class TestMain:
         line = json.loads(jsonl_files[0].read_text().strip())
         assert line["event_type"] == "response"
         assert line["content"] == "Done."
+
+    def test_question_event_writes_log(self, tmp_path, monkeypatch):
+        data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "AskUserQuestion",
+            "session_id": "sess-1",
+            "cwd": "/home/user/project",
+            "tool_input": {
+                "questions": [
+                    {
+                        "question": "Continue?",
+                        "header": "Confirm",
+                        "options": [
+                            {"label": "yes", "description": "proceed"},
+                            {"label": "no", "description": "stop"},
+                        ],
+                        "multiSelect": False,
+                    }
+                ],
+                "answers": {"Continue?": "yes"},
+            },
+        }
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        with (
+            mock.patch("prompt_log._git_branch", return_value="main"),
+            mock.patch("prompt_log.os.path.expanduser", return_value=str(tmp_path)),
+        ):
+            prompt_log.main()
+
+        log_dir = tmp_path / ".claude" / "prompt-log"
+        jsonl_files = list(log_dir.rglob("*.jsonl"))
+        assert len(jsonl_files) == 1
+        line = json.loads(jsonl_files[0].read_text().strip())
+        assert line["event_type"] == "question"
+        assert line["question"] == "Continue?"
+        assert line["options"] == [
+            {"label": "yes", "description": "proceed"},
+            {"label": "no", "description": "stop"},
+        ]
+        assert line["answer"] == "yes"
 
     def test_bad_json_no_crash(self, monkeypatch):
         monkeypatch.setattr(sys, "stdin", io.StringIO("not json"))
