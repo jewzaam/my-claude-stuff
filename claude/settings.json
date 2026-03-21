@@ -70,6 +70,7 @@
   },
   "permissions": {
     "allow": [
+      "Bash(*.claude/skills/voice/.venv/*/python* *.claude/skills/voice/scripts/voice.py*)",
       "Bash(gh issue list:*)",
       "Bash(gh issue view:*)",
       "Bash(gh search:*)",
@@ -406,7 +407,6 @@
       "Bash(make typecheck:*)",
       "Bash(python -m mypy:*)",
       "Bash(python -m pytest:*)",
-      "Bash(python* *.claude/skills/voice/scripts/voice.py)",
       "Bash(wc:*)",
       "WebSearch",
       "mcp__allowlist__get_allowed_permissions",
