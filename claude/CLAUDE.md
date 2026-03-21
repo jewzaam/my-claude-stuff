@@ -22,6 +22,7 @@
 - Answer direct questions without assuming actions
 - Next steps come from the user
 - We both make mistakes — welcome corrections and offer them in return
+- **Do not narrate review steps** — after making changes, proceed directly to validation. Do not tell the user to "go review" or "validate" anything; they review on their own terms, often during permission prompts
 
 ## Attribution
 - **Commits**: include `Assisted-by: <Tool> (<Model>)` (e.g., `Assisted-by: Claude Code (Claude Opus 4.6)`)

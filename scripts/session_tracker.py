@@ -76,6 +76,36 @@ def get_daily_cost(base_dir=DEFAULT_DIR):
     return total
 
 
+def get_previous_day_cost(base_dir=DEFAULT_DIR):
+    """Return (daily_total, session_count) for the most recent day before today."""
+    base = Path(base_dir)
+    if not base.is_dir():
+        return 0.0, 0
+
+    today = date.today().isoformat()
+    date_dirs = sorted(
+        (d.name for d in base.iterdir() if d.is_dir() and d.name < today),
+        reverse=True,
+    )
+    if not date_dirs:
+        return 0.0, 0
+
+    prev_dir = base / date_dirs[0]
+    total = 0.0
+    count = 0
+    for sf in prev_dir.iterdir():
+        if sf.suffix != SESSION_FILE_SUFFIX:
+            continue
+        try:
+            with open(sf, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            total += (data.get("cost") or {}).get("total_cost_usd", 0.0)
+            count += 1
+        except (json.JSONDecodeError, OSError):
+            continue
+    return total, count
+
+
 def get_project_cost(project_dir, base_dir=DEFAULT_DIR):
     """Sum cost.total_cost_usd across ALL dates for sessions matching project_dir.
 

@@ -489,7 +489,7 @@ class TestMain:
 
     def test_basic_output(self, monkeypatch, capsys):
         output = self._run_main(monkeypatch, capsys, SAMPLE_STDIN)
-        assert "Model: Opus 4.6" in output
+        assert "Opus 4.6" in output
         assert "Context: 12%" in output
 
     def test_with_usage_fresh(self, monkeypatch, capsys):
@@ -518,7 +518,6 @@ class TestMain:
         assert "4%" in output
         assert "3h" in output  # ~3h remaining for 5h bucket
         assert "4d" in output  # ~4d remaining for weekly
-        assert "(2m)" in output
         assert "!" not in output
 
     def test_with_usage_stale(self, monkeypatch, capsys):
@@ -542,7 +541,8 @@ class TestMain:
             age=0,
             stale=False,
         )
-        assert "(0s)" in output
+        # Freshness no longer shown when not stale
+        assert "(0s)" not in output
 
     def test_no_usage(self, monkeypatch, capsys):
         output = self._run_main(
@@ -572,11 +572,11 @@ class TestMain:
         data = {"model": {"display_name": "Sonnet"}}
         output = self._run_main(monkeypatch, capsys, data)
         assert "Context:" not in output
-        assert "Model: Sonnet" in output
+        assert "Sonnet" in output
 
     def test_default_model(self, monkeypatch, capsys):
         output = self._run_main(monkeypatch, capsys, {})
-        assert "Model: Claude" in output
+        assert "Claude" in output
 
     def test_cost_display(self, monkeypatch, capsys, tmp_path):
         data = {
@@ -597,6 +597,7 @@ class TestMain:
         mock_tracker = types.ModuleType("session_tracker")
         mock_tracker.track_session = lambda data: None
         mock_tracker.get_daily_cost = lambda: 5.25
+        mock_tracker.get_previous_day_cost = lambda: (10.0, 3)
         mock_tracker.get_project_cost = lambda project_dir: 42.00
         monkeypatch.setitem(
             __import__("sys").modules,
@@ -605,10 +606,9 @@ class TestMain:
         )
 
         statusline.main()
-        output = capsys.readouterr().out.strip()
-        assert "Session: $1.50" in output
-        assert "Today: $5.25" in output
-        assert "Project: $42.00" in output
+        raw = capsys.readouterr().out.strip()
+        output = re.sub(r"\033\[[0-9;]*m", "", raw)
+        assert "S/T/P: $1.50 / $5.25 / $42.00" in output
 
     def test_no_cost_shows_zero(self, monkeypatch, capsys):
         monkeypatch.setattr(
@@ -626,6 +626,7 @@ class TestMain:
         mock_tracker = types.ModuleType("session_tracker")
         mock_tracker.track_session = lambda data: None
         mock_tracker.get_daily_cost = lambda: 0.0
+        mock_tracker.get_previous_day_cost = lambda: (0.0, 0)
         mock_tracker.get_project_cost = lambda project_dir: 0.0
         monkeypatch.setitem(
             __import__("sys").modules,
@@ -634,8 +635,9 @@ class TestMain:
         )
 
         statusline.main()
-        output = capsys.readouterr().out.strip()
-        assert "Session: $0.00" in output
+        raw = capsys.readouterr().out.strip()
+        output = re.sub(r"\033\[[0-9;]*m", "", raw)
+        assert "S/T/P: $0.00" in output
 
     def test_project_cost_displayed(self, monkeypatch, capsys, tmp_path):
         data = {
@@ -656,6 +658,7 @@ class TestMain:
         mock_tracker = types.ModuleType("session_tracker")
         mock_tracker.track_session = lambda data: None
         mock_tracker.get_daily_cost = lambda: 1.00
+        mock_tracker.get_previous_day_cost = lambda: (20.0, 5)
         mock_tracker.get_project_cost = lambda project_dir: 245.00
         monkeypatch.setitem(
             __import__("sys").modules,
@@ -664,8 +667,9 @@ class TestMain:
         )
 
         statusline.main()
-        output = capsys.readouterr().out.strip()
-        assert "Project: $245.00" in output
+        raw = capsys.readouterr().out.strip()
+        output = re.sub(r"\033\[[0-9;]*m", "", raw)
+        assert "S/T/P: $0.50 / $1.00 / $245.00" in output
 
     def test_null_usage_fields(self, monkeypatch, capsys):
         usage = {
