@@ -597,7 +597,6 @@ class TestMain:
         mock_tracker = types.ModuleType("session_tracker")
         mock_tracker.track_session = lambda data: None
         mock_tracker.get_daily_cost = lambda: 5.25
-        mock_tracker.get_previous_day_cost = lambda: (10.0, 3)
         mock_tracker.get_project_cost = lambda project_dir: 42.00
         monkeypatch.setitem(
             __import__("sys").modules,
@@ -626,7 +625,6 @@ class TestMain:
         mock_tracker = types.ModuleType("session_tracker")
         mock_tracker.track_session = lambda data: None
         mock_tracker.get_daily_cost = lambda: 0.0
-        mock_tracker.get_previous_day_cost = lambda: (0.0, 0)
         mock_tracker.get_project_cost = lambda project_dir: 0.0
         monkeypatch.setitem(
             __import__("sys").modules,
@@ -658,7 +656,6 @@ class TestMain:
         mock_tracker = types.ModuleType("session_tracker")
         mock_tracker.track_session = lambda data: None
         mock_tracker.get_daily_cost = lambda: 1.00
-        mock_tracker.get_previous_day_cost = lambda: (20.0, 5)
         mock_tracker.get_project_cost = lambda project_dir: 245.00
         monkeypatch.setitem(
             __import__("sys").modules,
