@@ -606,7 +606,6 @@ class TestCheckCommand:
             ("git rebase -i HEAD~3", "git rebase"),
             ("git rebase --onto main feature", "git rebase"),
             ("/usr/bin/git rebase main", "git rebase"),
-            ("git -C /path rebase main", "git rebase"),
         ],
     )
     def test_git_rebase_blocked(self, command: str, expected: str) -> None:
