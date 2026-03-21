@@ -5,14 +5,16 @@
 Output:
   Context | <reset>: <pct>% | ... | S/T/P: $x / $y / $z | model | session_id
 
+Colors:
+  Quota %:  green < 60%, yellow 60-89%, red >= 90%
+  Costs:    blue ramp (dark to bright), $15 steps, saturates at $195+
+  Model:    orange
+  Session:  purple
+
 Quota labels show time remaining until reset, e.g.:
   3h4m: 20% | 4d12h: 4%
 At most 2 units of precision: d+h, h+m, m+s, or single unit.
-
-Quota utilization is fetched from the Anthropic OAuth usage API.
-Cached for 2 minutes; on 429/error, stale cache is used.
-Freshness indicator only shown on stale/error:
-  (!5m) = data is 5 minutes old, last fetch failed
+Freshness only shown on stale/error: (!5m)
 
 S/T/P = Session / Today / Project cost (USD).
 Session ID appended for cross-session prompt log correlation.
@@ -31,8 +33,6 @@ from pathlib import Path
 ANSI_RED = "\033[31m"
 ANSI_YELLOW = "\033[33m"
 ANSI_GREEN = "\033[32m"
-ANSI_CYAN = "\033[38;5;87m"
-ANSI_BLUE = "\033[38;5;75m"
 ANSI_ORANGE = "\033[38;5;208m"
 ANSI_PURPLE = "\033[38;5;141m"
 ANSI_RESET = "\033[0m"
@@ -98,16 +98,18 @@ def format_duration(seconds):
     return "".join(parts[:2])
 
 
-def colorize_cost(amount, mid_threshold, high_threshold):
-    """Return dollar amount with ANSI color: cyan -> blue -> purple."""
-    value = f"${amount:.2f}"
-    if amount >= high_threshold:
-        color = ANSI_PURPLE
-    elif amount >= mid_threshold:
-        color = ANSI_BLUE
-    else:
-        color = ANSI_CYAN
-    return f"{color}{value}{ANSI_RESET}"
+# Blue ramp: dark to bright in $15 steps, caps at $195+
+_COST_SHADES = [17, 18, 19, 20, 21, 27, 33, 39, 45, 51, 87, 123, 159, 195]
+_COST_STEP = 15
+
+
+def colorize_cost(amount):
+    """Return dollar amount colored by absolute value.
+
+    Single blue ramp, $15 steps, saturates at $195+.
+    """
+    idx = min(int(amount / _COST_STEP), len(_COST_SHADES) - 1)
+    return f"\033[38;5;{_COST_SHADES[idx]}m${amount:.2f}{ANSI_RESET}"
 
 
 def colorize_pct(pct):
@@ -305,36 +307,17 @@ def main():
     _scripts_parent = str(Path(__file__).resolve().parent.parent)
     if _scripts_parent not in sys.path:
         sys.path.insert(0, _scripts_parent)
-    from scripts.session_tracker import (
-        get_daily_cost,
-        get_previous_day_cost,
-        get_project_cost,
-        track_session,
-    )
+    from scripts.session_tracker import get_daily_cost, get_project_cost, track_session
 
     track_session(data)
     cost = (data.get("cost") or {}).get("total_cost_usd") or 0.0
     daily = get_daily_cost()
     project_dir = (data.get("workspace") or {}).get("project_dir")
     proj_cost = get_project_cost(project_dir) if project_dir else 0.0
-
-    prev_daily, prev_count = get_previous_day_cost()
-    if prev_daily > 0 and prev_count > 0:
-        avg_session = prev_daily / prev_count
-        s = colorize_cost(
-            cost, avg_session * THRESHOLD_MID, avg_session * THRESHOLD_HIGH
-        )
-        t = colorize_cost(
-            daily, prev_daily * THRESHOLD_MID, prev_daily * THRESHOLD_HIGH
-        )
-        p = colorize_cost(
-            proj_cost, prev_daily * THRESHOLD_MID, prev_daily * THRESHOLD_HIGH
-        )
-    else:
-        s = f"{ANSI_CYAN}${cost:.2f}{ANSI_RESET}"
-        t = f"{ANSI_CYAN}${daily:.2f}{ANSI_RESET}"
-        p = f"{ANSI_CYAN}${proj_cost:.2f}{ANSI_RESET}"
-    parts.append(f"S/T/P: {s} / {t} / {p}")
+    parts.append(
+        f"S/T/P: {colorize_cost(cost)} / {colorize_cost(daily)}"
+        f" / {colorize_cost(proj_cost)}"
+    )
 
     parts.append(f"{ANSI_ORANGE}{model}{ANSI_RESET}")
     session_id = data.get("session_id", "")
