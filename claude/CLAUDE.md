@@ -33,6 +33,7 @@
 - Descriptive variable names — `unit_of_measure` not `unit`; don't repeat context from containing object/class
 - Fix linter errors if you introduce them
 - Create dependency management files when building from scratch
+- **Versioning**: new projects start at `0.1.0`, follow [SemVer](https://semver.org/). User decides when to bump.
 
 ## Reviews
 - Capture reviews in `Review-<short context>.md` in the project root
