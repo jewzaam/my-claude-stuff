@@ -210,6 +210,8 @@ def _write_cache(cache_dict):
 
 
 MAX_COOLDOWN_SECONDS = 3600
+# If no attempt in this window, assume stale failure (sleep/resume) and retry
+STALE_FAILURE_SECONDS = 21600  # 6 hours
 
 
 def get_usage():
@@ -224,11 +226,18 @@ def get_usage():
 
         # Stale — check if we should skip fetch due to backoff cooldown
         failures = cached.get("consecutive_failures", 0)
+        since_last_attempt = now - cached.get("last_attempt_at", 0)
+        # Long gap (sleep/resume) — reset backoff and retry immediately
+        if failures > 0 and since_last_attempt >= STALE_FAILURE_SECONDS:
+            logger.info(
+                "Stale failure: %.0fs since last attempt, resetting backoff",
+                since_last_attempt,
+            )
+            failures = 0
         if failures > 0:
             cooldown = min(
                 USAGE_CACHE_TTL_SECONDS * (2**failures), MAX_COOLDOWN_SECONDS
             )
-            since_last_attempt = now - cached.get("last_attempt_at", 0)
             if since_last_attempt < cooldown:
                 logger.info(
                     "Backoff: skipping fetch, %d consecutive failures, "

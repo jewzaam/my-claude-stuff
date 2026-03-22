@@ -416,6 +416,54 @@ class TestGetUsage:
         assert len(fetch_called) == 1
         assert stale is False
 
+    def test_stale_failure_resets_backoff(self, isolate_paths, monkeypatch):
+        """If last attempt was >6h ago, reset backoff and retry immediately."""
+        _, cache_file, _ = isolate_paths
+        now = time.time()
+        cached = _make_cache(
+            {"stale": True},
+            now - 30000,
+            last_attempt_at=now - 22000,  # >6h ago
+            consecutive_failures=5,
+        )
+        cache_file.write_text(json.dumps(cached), encoding="utf-8")
+
+        fetch_called = []
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: fetch_called.append(1) or SAMPLE_USAGE_RESPONSE,
+        )
+
+        usage, age, stale = statusline.get_usage()
+        assert len(fetch_called) == 1
+        assert stale is False
+
+    def test_stale_failure_within_window_still_backs_off(
+        self, isolate_paths, monkeypatch
+    ):
+        """If last attempt was <6h ago, normal backoff still applies."""
+        _, cache_file, _ = isolate_paths
+        now = time.time()
+        cached = _make_cache(
+            {"stale": True},
+            now - 10000,
+            last_attempt_at=now - 10,  # 10s ago, well within 6h
+            consecutive_failures=3,
+        )
+        cache_file.write_text(json.dumps(cached), encoding="utf-8")
+
+        fetch_called = []
+        monkeypatch.setattr(
+            statusline,
+            "fetch_usage",
+            lambda: fetch_called.append(1) or SAMPLE_USAGE_RESPONSE,
+        )
+
+        usage, age, stale = statusline.get_usage()
+        assert len(fetch_called) == 0
+        assert stale is True
+
     def test_no_cache_no_fetch(self, monkeypatch):
         monkeypatch.setattr(statusline, "fetch_usage", lambda: None)
         usage, age, stale = statusline.get_usage()
