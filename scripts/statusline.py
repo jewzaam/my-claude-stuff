@@ -30,19 +30,20 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
-ANSI_RED = "\033[31m"
-ANSI_YELLOW = "\033[33m"
-ANSI_GREEN = "\033[32m"
-ANSI_ORANGE = "\033[38;5;208m"
-ANSI_PURPLE = "\033[38;5;141m"
-ANSI_RESET = "\033[0m"
-
-# Color threshold breakpoints (fraction, 0.0-1.0)
-THRESHOLD_MID = 0.6
-THRESHOLD_HIGH = 0.9
+from scripts.config import (
+    ANSI_GREEN,
+    ANSI_ORANGE,
+    ANSI_PURPLE,
+    ANSI_RED,
+    ANSI_RESET,
+    ANSI_YELLOW,
+    DATA_DIR,
+    THRESHOLD_HIGH,
+    THRESHOLD_MID,
+)
 
 USAGE_CACHE_TTL_SECONDS = 120
-USAGE_CACHE_DIR = Path.home() / ".claude" / "statusline-cache"
+USAGE_CACHE_DIR = DATA_DIR / "statusline-cache"
 USAGE_CACHE_FILE = USAGE_CACHE_DIR / "oauth_usage.json"
 LOG_FILE = USAGE_CACHE_DIR / "statusline.log"
 CREDENTIALS_FILE = Path.home() / ".claude" / ".credentials.json"

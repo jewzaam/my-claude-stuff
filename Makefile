@@ -1,6 +1,7 @@
-.PHONY: install install-dev install-no-deps uninstall clean format lint typecheck test test-verbose coverage default check help reconcile
+.PHONY: install install-dev install-no-deps uninstall clean format lint typecheck test test-verbose coverage default check help migrate reconcile
 
 VENV_DIR ?= .venv
+DATA_DIR := $(HOME)/.claude/my-claude-stuff-data
 ifeq ($(OS),Windows_NT)
     PYTHON := $(VENV_DIR)/Scripts/python.exe
 else
@@ -52,7 +53,19 @@ test-verbose: install-dev  ## Run pytest with verbose output
 coverage: install-dev  ## Run pytest with coverage
 	$(PYTHON) -m pytest --cov=scripts --cov-report=term
 
-reconcile:  ## Push claude/ config to ~/.claude/
+migrate:  ## Merge legacy data dirs into my-claude-stuff-data/
+	@mkdir -p $(DATA_DIR)
+	@for dir in session-tracker prompt-log statusline-cache; do \
+		if [ -d "$(HOME)/.claude/$$dir" ]; then \
+			echo "Migrating $$dir -> $(DATA_DIR)/$$dir"; \
+			cp -rn "$(HOME)/.claude/$$dir/." "$(DATA_DIR)/$$dir/" 2>/dev/null || \
+			cp -r --no-clobber "$(HOME)/.claude/$$dir/." "$(DATA_DIR)/$$dir/" 2>/dev/null || \
+			cp -r "$(HOME)/.claude/$$dir/." "$(DATA_DIR)/$$dir/"; \
+			rm -rf "$(HOME)/.claude/$$dir"; \
+		fi; \
+	done
+
+reconcile: migrate  ## Push claude/ config to ~/.claude/
 	$(PYTHON) scripts/reconcile.py claude/ $(HOME)/.claude/
 
 help:  ## Show this help message
