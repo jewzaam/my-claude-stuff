@@ -355,10 +355,11 @@ class TestWriteEntry:
             "git_branch": "main",
             "content": "Hello",
         }
-        with mock.patch("prompt_log.os.path.expanduser", return_value=str(tmp_path)):
+        mock_dir = str(tmp_path / "prompt-log")
+        with mock.patch("prompt_log.PROMPT_LOG_DIR", mock_dir):
             prompt_log._write_entry(entry)
 
-        log_file = tmp_path / ".claude" / "prompt-log" / "2026-03-19" / "abc-123.jsonl"
+        log_file = tmp_path / "prompt-log" / "2026-03-19" / "abc-123.jsonl"
         assert log_file.exists()
         lines = log_file.read_text().strip().split("\n")
         assert len(lines) == 1
@@ -383,11 +384,12 @@ class TestWriteEntry:
             "git_branch": "main",
             "content": "Second",
         }
-        with mock.patch("prompt_log.os.path.expanduser", return_value=str(tmp_path)):
+        mock_dir = str(tmp_path / "prompt-log")
+        with mock.patch("prompt_log.PROMPT_LOG_DIR", mock_dir):
             prompt_log._write_entry(entry1)
             prompt_log._write_entry(entry2)
 
-        log_file = tmp_path / ".claude" / "prompt-log" / "2026-03-19" / "abc-123.jsonl"
+        log_file = tmp_path / "prompt-log" / "2026-03-19" / "abc-123.jsonl"
         lines = log_file.read_text().strip().split("\n")
         assert len(lines) == 2
 
@@ -408,11 +410,12 @@ class TestWriteEntry:
             "git_branch": "",
             "content": "Day 2",
         }
-        with mock.patch("prompt_log.os.path.expanduser", return_value=str(tmp_path)):
+        mock_dir = str(tmp_path / "prompt-log")
+        with mock.patch("prompt_log.PROMPT_LOG_DIR", mock_dir):
             prompt_log._write_entry(entry1)
             prompt_log._write_entry(entry2)
 
-        log_base = tmp_path / ".claude" / "prompt-log"
+        log_base = tmp_path / "prompt-log"
         assert (log_base / "2026-03-19" / "abc-123.jsonl").exists()
         assert (log_base / "2026-03-20" / "abc-123.jsonl").exists()
 
@@ -426,13 +429,14 @@ class TestMain:
             "prompt": "What is this?",
         }
         monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        mock_dir = str(tmp_path / "prompt-log")
         with (
             mock.patch("prompt_log._git_branch", return_value="main"),
-            mock.patch("prompt_log.os.path.expanduser", return_value=str(tmp_path)),
+            mock.patch("prompt_log.PROMPT_LOG_DIR", mock_dir),
         ):
             prompt_log.main()
 
-        log_dir = tmp_path / ".claude" / "prompt-log"
+        log_dir = tmp_path / "prompt-log"
         jsonl_files = list(log_dir.rglob("*.jsonl"))
         assert len(jsonl_files) == 1
         line = json.loads(jsonl_files[0].read_text().strip())
@@ -447,13 +451,14 @@ class TestMain:
             "last_assistant_message": "Done.",
         }
         monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        mock_dir = str(tmp_path / "prompt-log")
         with (
             mock.patch("prompt_log._git_branch", return_value="main"),
-            mock.patch("prompt_log.os.path.expanduser", return_value=str(tmp_path)),
+            mock.patch("prompt_log.PROMPT_LOG_DIR", mock_dir),
         ):
             prompt_log.main()
 
-        log_dir = tmp_path / ".claude" / "prompt-log"
+        log_dir = tmp_path / "prompt-log"
         jsonl_files = list(log_dir.rglob("*.jsonl"))
         assert len(jsonl_files) == 1
         line = json.loads(jsonl_files[0].read_text().strip())
@@ -482,13 +487,14 @@ class TestMain:
             },
         }
         monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        mock_dir = str(tmp_path / "prompt-log")
         with (
             mock.patch("prompt_log._git_branch", return_value="main"),
-            mock.patch("prompt_log.os.path.expanduser", return_value=str(tmp_path)),
+            mock.patch("prompt_log.PROMPT_LOG_DIR", mock_dir),
         ):
             prompt_log.main()
 
-        log_dir = tmp_path / ".claude" / "prompt-log"
+        log_dir = tmp_path / "prompt-log"
         jsonl_files = list(log_dir.rglob("*.jsonl"))
         assert len(jsonl_files) == 1
         line = json.loads(jsonl_files[0].read_text().strip())

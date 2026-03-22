@@ -3,11 +3,12 @@
 """Session tracking for Claude Code statusline.
 
 Persists full statusline JSON blobs to date-partitioned directories
-under ~/.claude/session-tracker/. Each session is keyed by session_id
+under ~/.claude/my-claude-stuff-data/session-tracker/.
+Each session is keyed by session_id
 (UUID, stable across detach/resume).
 
 Layout:
-  ~/.claude/session-tracker/
+  ~/.claude/my-claude-stuff-data/session-tracker/
     2026-03-16/
       {uuid}.json
     2026-03-17/
@@ -19,7 +20,9 @@ import re
 from datetime import date
 from pathlib import Path, PurePosixPath
 
-DEFAULT_DIR = Path.home() / ".claude" / "session-tracker"
+from scripts.config import DATA_DIR
+
+DEFAULT_DIR = DATA_DIR / "session-tracker"
 SESSION_FILE_SUFFIX = ".json"
 WORKTREE_DIR_NAME = "git-worktrees"
 

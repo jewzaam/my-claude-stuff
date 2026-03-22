@@ -8,7 +8,7 @@ Handles three hook events:
   - PostToolUse (AskUserQuestion): logs questions asked and user's answers
 
 Each session writes to its own file:
-  ~/.claude/prompt-log/{date}/{session_id}.jsonl
+  ~/.claude/my-claude-stuff-data/prompt-log/{date}/{session_id}.jsonl
 No locking needed since each session has its own file and hooks are sequential.
 All failures are silently ignored to avoid blocking Claude Code.
 """
@@ -19,6 +19,10 @@ import re
 import subprocess
 import sys
 from datetime import datetime, timezone
+
+from scripts.config import DATA_DIR
+
+PROMPT_LOG_DIR = str(DATA_DIR / "prompt-log")
 
 
 def _git_branch(cwd: str) -> str:
@@ -125,7 +129,7 @@ def _extract_entry(data: dict) -> dict | list[dict] | None:
 def _write_entry(entry: dict) -> None:
     """Append a JSONL entry to the session log file."""
     date_str = datetime.fromisoformat(entry["timestamp"]).strftime("%Y-%m-%d")
-    log_dir = os.path.join(os.path.expanduser("~"), ".claude", "prompt-log", date_str)
+    log_dir = os.path.join(PROMPT_LOG_DIR, date_str)
     os.makedirs(log_dir, exist_ok=True)
 
     log_file = os.path.join(log_dir, f"{entry['session_id']}.jsonl")
@@ -136,9 +140,7 @@ def _write_entry(entry: dict) -> None:
 def _dump_debug(data: dict) -> None:
     """Dump raw hook data for debugging. Clobbers per-event."""
     try:
-        debug_dir = os.path.join(
-            os.path.expanduser("~"), ".claude", "prompt-log", "debug"
-        )
+        debug_dir = os.path.join(PROMPT_LOG_DIR, "debug")
         os.makedirs(debug_dir, exist_ok=True)
         event = data.get("hook_event_name", "unknown")
         debug_file = os.path.join(debug_dir, f"{event}.json")
