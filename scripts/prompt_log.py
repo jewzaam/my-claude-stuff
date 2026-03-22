@@ -19,8 +19,13 @@ import re
 import subprocess
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
-from scripts.config import DATA_DIR
+_scripts_parent = str(Path(__file__).resolve().parent.parent)
+if _scripts_parent not in sys.path:
+    sys.path.insert(0, _scripts_parent)
+
+from scripts.config import DATA_DIR  # noqa: E402
 
 PROMPT_LOG_DIR = str(DATA_DIR / "prompt-log")
 

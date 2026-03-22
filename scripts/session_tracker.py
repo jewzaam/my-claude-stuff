@@ -17,10 +17,15 @@ Layout:
 
 import json
 import re
+import sys
 from datetime import date
 from pathlib import Path, PurePosixPath
 
-from scripts.config import DATA_DIR
+_scripts_parent = str(Path(__file__).resolve().parent.parent)
+if _scripts_parent not in sys.path:
+    sys.path.insert(0, _scripts_parent)
+
+from scripts.config import DATA_DIR  # noqa: E402
 
 DEFAULT_DIR = DATA_DIR / "session-tracker"
 SESSION_FILE_SUFFIX = ".json"

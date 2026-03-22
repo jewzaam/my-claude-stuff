@@ -30,7 +30,13 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
-from scripts.config import (
+# Ensure scripts/ parent is on sys.path so `from scripts.config` works
+# when invoked directly (e.g. by Claude Code statusline command).
+_scripts_parent = str(Path(__file__).resolve().parent.parent)
+if _scripts_parent not in sys.path:
+    sys.path.insert(0, _scripts_parent)
+
+from scripts.config import (  # noqa: E402
     ANSI_GREEN,
     ANSI_ORANGE,
     ANSI_PURPLE,
