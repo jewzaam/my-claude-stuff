@@ -68,10 +68,14 @@
 - Natural timing: after specs capture intent, before implementation
 
 ## Spec-Kit Priority
-- Before design/implementation/planning work, **check the repo for existing spec-kit specs first**
-- Spec-kit artifacts are the preferred durable design artifact
+- Before design/implementation/planning work, **check for existing spec-kit artifacts** in `.specify/specs/` and `.specify/memory/constitution.md`
+- Spec-kit artifacts are the preferred durable design artifact — use them over ad-hoc plans
+- If the project uses spec-kit but no specs exist for the current work, create them via `/speckit.specify`
 - Brainstorming skill complements spec-kit (especially for functional requirements) but doesn't replace it
-- If no spec-kit specs exist but the project uses spec-kit, create specs there rather than in ad-hoc plans
+- **Workflow order**: constitution → specify → clarify → plan → tasks → implement. Do not skip steps or reorder without explicit user approval
+- **What/why vs how**: specs (`/speckit.specify`) define requirements and user stories — no tech stack, no architecture. Tech decisions belong in `/speckit.plan`
+- **Consult the constitution** (`.specify/memory/constitution.md`) before creating or modifying any spec-kit artifact
+- **Clarify before planning**: run `/speckit.clarify` before `/speckit.plan` unless the user explicitly skips it
 
 ## Tool Usage
 - **Minimize approval prompts** — prefer dedicated tools (Read, Glob, Grep, Edit) over Bash
