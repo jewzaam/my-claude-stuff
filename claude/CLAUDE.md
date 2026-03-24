@@ -4,6 +4,7 @@
 - **Never execute**: `git push`, `sudo`, or `su`
 - **No commits to default branches** unless explicitly instructed
 - **Work on fork/feature branches** or current branch if specified
+- **Never use destructive data operations** (wipe DB, drop tables, destructive migrations) without explicit user approval
 
 ## Communication
 - Direct, concise, professional — no praise, apologies, sugarcoating, or exclamations
@@ -23,6 +24,8 @@
 - Next steps come from the user
 - We both make mistakes — welcome corrections and offer them in return
 - **Do not narrate review steps** — after making changes, proceed directly to validation. Do not tell the user to "go review" or "validate" anything; they review on their own terms, often during permission prompts
+- **"Tell me"** means report findings and STOP — do not act on findings unless explicitly asked
+- **Follow skill instructions exactly** — when a skill defines how to handle an edge case, use that instruction; don't override with independent approaches
 
 ## Attribution
 - **Commits**: include `Assisted-by: <Tool> (<Model>)` (e.g., `Assisted-by: Claude Code (Claude Opus 4.6)`)
@@ -34,10 +37,12 @@
 - Fix linter errors if you introduce them
 - Create dependency management files when building from scratch
 - **Versioning**: new projects start at `0.1.0`, follow [SemVer](https://semver.org/). User decides when to bump.
+- Put investigative/exploratory code in durable scripts (e.g., `scripts/explore/`), not inline `python -c` commands — scripts are reproducible, reviewable, and portable
 
 ## Reviews
 - Capture reviews in `Review-<short context>.md` in the project root
 - Focus on changes within scope unless instructed otherwise
+- **Spec cascade** — when code review changes affect design, cascade updates back into spec documents. Specs are the durable design record.
 
 ## JIRA Analysis
 - **Description and Acceptance Criteria are authoritative** — comments are context only
@@ -48,3 +53,24 @@
   2. Call `getJiraIssueTypeMetaWithFields` with the project key and issue type ID to get all fields
   3. Search the returned fields array for one with `name: "Acceptance Criteria"` — note its `fieldId` (e.g., `customfield_12345`)
   4. Call `getJiraIssue` with `fields: ["customfield_12345", "description", "summary", "status", "issuetype"]` using the discovered field ID
+
+## New Application Projects
+- When starting a **new application from scratch** with substantial functionality, suggest researching existing tools/apps that meet the need before building
+- One-time suggestion; don't trigger for established projects or non-app work (voice transcription, file downloads, config)
+- Natural timing: after specs capture intent, before implementation
+
+## Spec-Kit Priority
+- Before design/implementation/planning work, **check the repo for existing spec-kit specs first**
+- Spec-kit artifacts are the preferred durable design artifact
+- Brainstorming skill complements spec-kit (especially for functional requirements) but doesn't replace it
+- If no spec-kit specs exist but the project uses spec-kit, create specs there rather than in ad-hoc plans
+
+## Tool Usage
+- **Minimize approval prompts** — prefer dedicated tools (Read, Glob, Grep, Edit) over Bash
+- **Never chain Bash commands with `;`** — use `&&` for dependent chaining or make separate Bash tool calls. Semicolons defeat hook-based command inspection.
+- Don't use unnecessary `cd` when the working directory is already correct
+- **Use Makefile targets** when available — the Makefile is the project's CLI interface
+- Use the **exact same command string AND description** for repeated operations — don't vary description text, tail counts, or flags between runs
+
+## Model Usage
+- Sonnet for implementation work, Opus for planning and review
