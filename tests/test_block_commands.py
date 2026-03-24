@@ -1235,6 +1235,492 @@ class TestGwsPathVariants:
         assert block_commands.check_command(command) == expected
 
 
+class TestGhApiMutationsBlocked:
+    """gh api with mutation indicators must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh api -X POST /repos/owner/repo/issues",
+            "gh api -X PUT /repos/owner/repo/issues/1",
+            "gh api -X PATCH /repos/owner/repo/issues/1",
+            "gh api -X DELETE /repos/owner/repo/issues/1",
+            "gh api --method POST /repos/owner/repo/issues",
+            "gh api --method DELETE /repos/owner/repo/issues/1",
+            "gh api graphql -f query='{viewer{login}}'",
+            "gh api /repos/owner/repo/issues -f title=test -f body=test",
+            "gh api /repos/owner/repo/issues -F body=@file.md",
+            "gh api /repos/owner/repo/issues --field title=test",
+            "gh api /repos/owner/repo/issues --raw-field body=test",
+            "gh api /repos/owner/repo/issues --input body.json",
+            "/usr/bin/gh api -X POST /repos/owner/repo/issues",
+            "gh.exe api -X DELETE /repos/owner/repo/issues/1",
+            "env gh api --method PATCH /repos/owner/repo/issues/1",
+        ],
+    )
+    def test_blocked(self, command: str) -> None:
+        assert block_commands.check_command(command) == "gh api (mutation)"
+
+
+class TestGhApiReadAllowed:
+    """gh api GET requests must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh api /repos/owner/repo",
+            "gh api /repos/owner/repo/issues",
+            "gh api repos/owner/repo/pulls/123/comments",
+            "gh api /repos/owner/repo/pulls/123/reviews",
+            "gh api -X GET /repos/owner/repo/issues",
+            "gh api --method GET /repos/owner/repo",
+            "gh api /repos/owner/repo --jq .name",
+            "gh api /repos/owner/repo -H Accept:application/json",
+            "gh api --paginate /repos/owner/repo/issues",
+            "/usr/bin/gh api /repos/owner/repo",
+            "gh.exe api /repos/owner/repo",
+            "env gh api /repos/owner/repo",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhIssueMutationsBlocked:
+    """gh issue mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh issue create", "gh issue (mutation)"),
+            ("gh issue create --title test", "gh issue (mutation)"),
+            ("gh issue close 123", "gh issue (mutation)"),
+            ("gh issue reopen 123", "gh issue (mutation)"),
+            ("gh issue delete 123", "gh issue (mutation)"),
+            ("gh issue edit 123", "gh issue (mutation)"),
+            ("gh issue comment 123", "gh issue (mutation)"),
+            ("gh issue transfer 123 owner/repo", "gh issue (mutation)"),
+            ("gh issue pin 123", "gh issue (mutation)"),
+            ("gh issue unpin 123", "gh issue (mutation)"),
+            ("gh issue lock 123", "gh issue (mutation)"),
+            ("gh issue unlock 123", "gh issue (mutation)"),
+            ("gh issue develop 123", "gh issue (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGhIssueReadAllowed:
+    """gh issue read-only operations must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh issue list",
+            "gh issue list --state open",
+            "gh issue view 123",
+            "gh issue status",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhPrMutationsBlocked:
+    """gh pr mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh pr create", "gh pr (mutation)"),
+            ("gh pr create --title test", "gh pr (mutation)"),
+            ("gh pr close 123", "gh pr (mutation)"),
+            ("gh pr reopen 123", "gh pr (mutation)"),
+            ("gh pr merge 123", "gh pr (mutation)"),
+            ("gh pr edit 123", "gh pr (mutation)"),
+            ("gh pr comment 123", "gh pr (mutation)"),
+            ("gh pr review 123", "gh pr (mutation)"),
+            ("gh pr ready 123", "gh pr (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGhPrReadAllowed:
+    """gh pr read-only operations must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh pr list",
+            "gh pr view 123",
+            "gh pr diff 123",
+            "gh pr checks 123",
+            "gh pr status",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhRepoMutationsBlocked:
+    """gh repo mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh repo create myrepo", "gh repo (mutation)"),
+            ("gh repo delete owner/repo", "gh repo (mutation)"),
+            ("gh repo edit owner/repo", "gh repo (mutation)"),
+            ("gh repo fork owner/repo", "gh repo (mutation)"),
+            ("gh repo rename newname", "gh repo (mutation)"),
+            ("gh repo archive owner/repo", "gh repo (mutation)"),
+            ("gh repo unarchive owner/repo", "gh repo (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGhRepoReadAllowed:
+    """gh repo read-only operations must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh repo list",
+            "gh repo view owner/repo",
+            "gh repo clone owner/repo",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhReleaseMutationsBlocked:
+    """gh release mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh release create v1.0", "gh release (mutation)"),
+            ("gh release delete v1.0", "gh release (mutation)"),
+            ("gh release edit v1.0", "gh release (mutation)"),
+            ("gh release upload v1.0 file.tar.gz", "gh release (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGhReleaseReadAllowed:
+    """gh release read-only operations must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh release list",
+            "gh release view v1.0",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhGistMutationsBlocked:
+    """gh gist mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh gist create file.txt", "gh gist (mutation)"),
+            ("gh gist delete abc123", "gh gist (mutation)"),
+            ("gh gist edit abc123", "gh gist (mutation)"),
+            ("gh gist rename abc123 newname", "gh gist (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGhGistReadAllowed:
+    """gh gist read-only operations must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh gist list",
+            "gh gist view abc123",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhLabelMutationsBlocked:
+    """gh label mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh label create bug", "gh label (mutation)"),
+            ("gh label delete bug", "gh label (mutation)"),
+            ("gh label edit bug", "gh label (mutation)"),
+            ("gh label clone owner/repo", "gh label (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    def test_list_allowed(self) -> None:
+        assert block_commands.check_command("gh label list") is None
+
+
+class TestGhProjectMutationsBlocked:
+    """gh project mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh project create", "gh project (mutation)"),
+            ("gh project close 1", "gh project (mutation)"),
+            ("gh project copy 1", "gh project (mutation)"),
+            ("gh project delete 1", "gh project (mutation)"),
+            ("gh project edit 1", "gh project (mutation)"),
+            ("gh project field-create 1", "gh project (mutation)"),
+            ("gh project field-delete 1", "gh project (mutation)"),
+            ("gh project item-add 1", "gh project (mutation)"),
+            ("gh project item-archive 1", "gh project (mutation)"),
+            ("gh project item-create 1", "gh project (mutation)"),
+            ("gh project item-delete 1", "gh project (mutation)"),
+            ("gh project item-edit 1", "gh project (mutation)"),
+            ("gh project link 1", "gh project (mutation)"),
+            ("gh project unlink 1", "gh project (mutation)"),
+            ("gh project mark-template 1", "gh project (mutation)"),
+            ("gh project unmark-template 1", "gh project (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh project list",
+            "gh project view 1",
+            "gh project field-list 1",
+            "gh project item-list 1",
+        ],
+    )
+    def test_read_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhRunWorkflowMutationsBlocked:
+    """gh run/workflow mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh run cancel 12345", "gh run/workflow (mutation)"),
+            ("gh run delete 12345", "gh run/workflow (mutation)"),
+            ("gh run rerun 12345", "gh run/workflow (mutation)"),
+            ("gh run watch 12345", "gh run/workflow (mutation)"),
+            ("gh workflow run deploy.yml", "gh run/workflow (mutation)"),
+            ("gh workflow enable deploy.yml", "gh run/workflow (mutation)"),
+            ("gh workflow disable deploy.yml", "gh run/workflow (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh run list",
+            "gh run view 12345",
+            "gh workflow list",
+            "gh workflow view deploy.yml",
+        ],
+    )
+    def test_read_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhSecretVariableMutationsBlocked:
+    """gh secret/variable mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh secret set MY_SECRET", "gh secret/variable (mutation)"),
+            ("gh secret delete MY_SECRET", "gh secret/variable (mutation)"),
+            ("gh secret remove MY_SECRET", "gh secret/variable (mutation)"),
+            ("gh variable set MY_VAR", "gh secret/variable (mutation)"),
+            ("gh variable delete MY_VAR", "gh secret/variable (mutation)"),
+            ("gh variable remove MY_VAR", "gh secret/variable (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh secret list",
+            "gh variable list",
+            "gh variable get MY_VAR",
+        ],
+    )
+    def test_read_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhKeyMutationsBlocked:
+    """gh deploy-key/ssh-key/gpg-key mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh deploy-key add key.pub", "gh key (mutation)"),
+            ("gh deploy-key delete 12345", "gh key (mutation)"),
+            ("gh ssh-key add key.pub", "gh key (mutation)"),
+            ("gh ssh-key delete 12345", "gh key (mutation)"),
+            ("gh gpg-key add key.pub", "gh key (mutation)"),
+            ("gh gpg-key delete 12345", "gh key (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh deploy-key list",
+            "gh ssh-key list",
+            "gh gpg-key list",
+        ],
+    )
+    def test_read_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhCacheCodespaceExtensionBlocked:
+    """gh cache/codespace/extension mutations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh cache delete abc", "gh cache/codespace/extension (mutation)"),
+            ("gh codespace create", "gh cache/codespace/extension (mutation)"),
+            ("gh codespace delete", "gh cache/codespace/extension (mutation)"),
+            ("gh codespace edit", "gh cache/codespace/extension (mutation)"),
+            ("gh codespace rebuild", "gh cache/codespace/extension (mutation)"),
+            ("gh codespace stop", "gh cache/codespace/extension (mutation)"),
+            (
+                "gh extension install owner/ext",
+                "gh cache/codespace/extension (mutation)",
+            ),
+            ("gh extension remove ext", "gh cache/codespace/extension (mutation)"),
+            ("gh extension upgrade ext", "gh cache/codespace/extension (mutation)"),
+            ("gh extension create ext", "gh cache/codespace/extension (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh cache list",
+            "gh codespace list",
+            "gh codespace view",
+            "gh extension list",
+        ],
+    )
+    def test_read_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhAuthMutationsBlocked:
+    """gh auth state changes must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("gh auth login", "gh auth (mutation)"),
+            ("gh auth logout", "gh auth (mutation)"),
+            ("gh auth refresh", "gh auth (mutation)"),
+            ("gh auth setup-git", "gh auth (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh auth status",
+            "gh auth token",
+        ],
+    )
+    def test_read_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhConfigSetBlocked:
+    """gh config set must be blocked."""
+
+    def test_blocked(self) -> None:
+        assert (
+            block_commands.check_command("gh config set editor vim") == "gh config set"
+        )
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh config get editor",
+            "gh config list",
+        ],
+    )
+    def test_read_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhPathVariants:
+    """gh commands with path prefix, .exe suffix, env prefix."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("/usr/bin/gh issue create", "gh issue (mutation)"),
+            ("gh.exe pr merge 123", "gh pr (mutation)"),
+            ("env gh repo delete owner/repo", "gh repo (mutation)"),
+            ("env -i /usr/local/bin/gh api -X POST /repos/foo", "gh api (mutation)"),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
+class TestGhSearchAllowed:
+    """gh search must remain allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh search issues test",
+            "gh search repos test",
+            "gh search prs test",
+            "gh search commits test",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
 class TestMain:
     def test_blocked_command_exits_2(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = {"tool_input": {"command": "git push origin main"}}
