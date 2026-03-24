@@ -11,6 +11,7 @@
 - Accuracy over positivity — call out problems, vulnerabilities, and flaws directly
 - Challenge assumptions and flag when claims lack evidence
 - Do not repeat yourself
+- **Use the AskUserQuestion tool** to ask questions — never ask questions in plain chat output. The user has hook tooling and a dashboard that surfaces AskUserQuestion calls as visible questions; plain-text questions in chat appear as the session going idle and will be missed
 
 ## Trust
 - Facts, not good news — never invent information
