@@ -7,7 +7,7 @@ Output:
 
 Colors:
   Quota %:  green < 60%, yellow 60-89%, red >= 90%
-  Costs:    blue ramp (dark to bright), $15 steps, saturates at $195+
+  Costs:    cyan ramp (monotonic brightness), $15 steps, saturates at $195+
   Model:    orange
   Session:  purple
 
@@ -105,8 +105,9 @@ def format_duration(seconds):
     return "".join(parts[:2])
 
 
-# Blue ramp: dark to bright in $15 steps, caps at $195+
-_COST_SHADES = [17, 18, 19, 20, 21, 27, 33, 39, 45, 51, 87, 123, 159, 195]
+# Cyan monotonic ramp: follows 256-color cube diagonal for strict brightness increase.
+# $15 steps, caps at $195+. Visible on both dark terminals and VSCode.
+_COST_SHADES = [30, 37, 44, 51, 80, 87, 116, 123, 152, 159, 181, 188, 195, 231]
 _COST_STEP = 15
 
 
