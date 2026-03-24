@@ -32,6 +32,12 @@ Blocked categories:
   GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
            Keep, Forms, Docs, Slides (writes), Classroom, Workflow (all),
            Meet (mutations), Events (subscriptions)
+  GitHub CLI: gh api (mutation indicators: non-GET method, field/body flags),
+              issue/pr/repo/release/gist/label/project (mutations),
+              run/workflow (mutations), secret/variable (mutations),
+              deploy-key/ssh-key/gpg-key (mutations),
+              cache/codespace/extension (mutations),
+              auth (state changes), config set
 """
 
 import json
@@ -162,7 +168,7 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(rf"{_ENV}{_PATH}rsync{_EXE}\b"), "rsync"),
     (re.compile(r"\b(?:s?ftp)\b"), "ftp/sftp"),
     (re.compile(r"\btelnet\b"), "telnet"),
-    (re.compile(rf"{_ENV}{_PATH}ssh{_EXE}\b"), "ssh"),
+    (re.compile(rf"{_ENV}{_PATH}ssh{_EXE}(?!-)\b"), "ssh"),
     (re.compile(r"\bsocat\b"), "socat"),
     # Windows destructive commands
     (
@@ -348,6 +354,122 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
             r"spaces\s+(?:create|patch|endActiveConference)\b"
         ),
         "gws meet (mutation)",
+    ),
+    # GitHub CLI mutation blocking
+    # gh api: block mutation indicators — non-GET method or body/field flags
+    # Plain `gh api <endpoint>` defaults to GET and is safe (e.g. reading PR comments)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+api\b.*"
+            r"(?:(?:-X|--method)\s+(?!GET\b)\S+"
+            r"|(?:--field|--raw-field|--input)\b"
+            r"|\s-[fF]\s)"
+        ),
+        "gh api (mutation)",
+    ),
+    # gh issue mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+issue\s+"
+            r"(?:create|close|reopen|delete|edit|comment|transfer"
+            r"|pin|unpin|lock|unlock|develop)\b"
+        ),
+        "gh issue (mutation)",
+    ),
+    # gh pr mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+pr\s+"
+            r"(?:create|close|reopen|merge|edit|comment|review|ready)\b"
+        ),
+        "gh pr (mutation)",
+    ),
+    # gh repo mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+repo\s+"
+            r"(?:create|delete|edit|fork|rename|archive|unarchive)\b"
+        ),
+        "gh repo (mutation)",
+    ),
+    # gh release mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+release\s+" r"(?:create|delete|edit|upload)\b"
+        ),
+        "gh release (mutation)",
+    ),
+    # gh gist mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+gist\s+" r"(?:create|delete|edit|rename)\b"
+        ),
+        "gh gist (mutation)",
+    ),
+    # gh label mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+label\s+" r"(?:create|delete|edit|clone)\b"
+        ),
+        "gh label (mutation)",
+    ),
+    # gh project mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+project\s+"
+            r"(?:create|close|copy|delete|edit"
+            r"|field-create|field-delete"
+            r"|item-add|item-archive|item-create|item-delete|item-edit"
+            r"|link|unlink|mark-template|unmark-template)\b"
+        ),
+        "gh project (mutation)",
+    ),
+    # gh run/workflow mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+"
+            r"(?:run\s+(?:cancel|delete|rerun|watch)"
+            r"|workflow\s+(?:run|enable|disable))\b"
+        ),
+        "gh run/workflow (mutation)",
+    ),
+    # gh secret/variable mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+"
+            r"(?:secret|variable)\s+(?:set|delete|remove)\b"
+        ),
+        "gh secret/variable (mutation)",
+    ),
+    # gh deploy-key/ssh-key/gpg-key mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+"
+            r"(?:deploy-key|ssh-key|gpg-key)\s+(?:add|delete)\b"
+        ),
+        "gh key (mutation)",
+    ),
+    # gh cache/codespace/extension mutations
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+"
+            r"(?:cache\s+delete"
+            r"|codespace\s+(?:create|delete|edit|rebuild|stop)"
+            r"|extension\s+(?:install|remove|upgrade|create))\b"
+        ),
+        "gh cache/codespace/extension (mutation)",
+    ),
+    # gh auth state changes (login/logout/refresh/setup-git)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}gh{_EXE}\s+auth\s+" r"(?:login|logout|refresh|setup-git)\b"
+        ),
+        "gh auth (mutation)",
+    ),
+    # gh config set (changes gh behavior)
+    (
+        re.compile(rf"{_ENV}{_PATH}gh{_EXE}\s+config\s+set\b"),
+        "gh config set",
     ),
 ]
 
