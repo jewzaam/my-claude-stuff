@@ -1,4 +1,4 @@
-.PHONY: install install-dev install-no-deps uninstall clean format lint typecheck test test-verbose coverage default check help migrate reconcile
+.PHONY: install install-dev install-no-deps uninstall clean format format-check lint typecheck test test-verbose coverage default check help migrate reconcile
 
 VENV_DIR ?= .venv
 DATA_DIR := $(HOME)/.claude/my-claude-stuff-data
@@ -37,6 +37,9 @@ clean:  ## Remove build artifacts
 format: install-dev  ## Format code with black and JSON files
 	$(PYTHON) -m black scripts tests
 	jq -S 'walk(if type == "array" then sort else . end)' claude/settings.json > claude/settings.json.tmp && mv claude/settings.json.tmp claude/settings.json
+
+format-check: install-dev  ## Check formatting without modifying files
+	$(PYTHON) -m black --check scripts tests
 
 lint: install-dev  ## Lint with flake8
 	$(PYTHON) -m flake8 --max-line-length=88 --extend-ignore=E203,W503 scripts tests
