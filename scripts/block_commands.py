@@ -28,7 +28,9 @@ Blocked categories:
   Publishing: npm publish, twine upload, gem push, cargo publish,
               dotnet nuget push
   Network: nc/netcat/ncat, scp, rsync, ftp/sftp, telnet, ssh, socat
-  Cross-platform: curl/wget piped to sh/bash (presplit)
+  Cross-platform: curl/wget piped to shell/interpreter (presplit)
+              sh, bash, dash, ksh, csh, tcsh, zsh, fish,
+              python, python3, pythonw, perl, ruby, node
   GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
            Keep, Forms, Docs, Slides (writes), Classroom, Workflow (all),
            Meet (mutations), Events (subscriptions)
@@ -55,10 +57,20 @@ _FLAGS = r"(?:\s+(?:-\S+|\S+=\S+)(?:\s+\S+)?)*"
 # Optional Windows-style single-letter flags: /q, /f, /S, etc.
 _WFLAGS = r"(?:\s+/[a-zA-Z])*"
 
+# Shells and interpreters that should never receive piped remote content.
+# Covers common defaults: POSIX shells, popular interactive shells,
+# and scripting language interpreters.  Windows .exe variants are
+# handled by the optional _EXE suffix already defined above.
+_PIPE_SHELLS = (
+    r"(?:ba|da|k|c|tc|z|fi)?sh"  # sh, bash, dash, ksh, csh, tcsh, zsh, fish
+    r"|python[3w]?"  # python, python3, pythonw
+    r"|perl|ruby|node"
+)
+
 # Patterns checked BEFORE chain splitting (span pipes intentionally)
 PRESPLIT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
-        re.compile(r"(?:curl|wget)\b.*\|\s*(?:ba)?sh\b"),
+        re.compile(rf"(?:curl|wget)\b.*\|\s*{_PATH}(?:{_PIPE_SHELLS}){_EXE}\b"),
         "pipe-to-shell",
     ),
 ]
