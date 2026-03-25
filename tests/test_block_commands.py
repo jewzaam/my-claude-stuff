@@ -1270,7 +1270,7 @@ class TestGhApiMutationsBlocked:
             "gh api -X DELETE /repos/owner/repo/issues/1",
             "gh api --method POST /repos/owner/repo/issues",
             "gh api --method DELETE /repos/owner/repo/issues/1",
-            "gh api graphql -f query='{viewer{login}}'",
+            "gh api graphql -f query='mutation { createIssue(input: {}) { id } }'",
             "gh api /repos/owner/repo/issues -f title=test -f body=test",
             "gh api /repos/owner/repo/issues -F body=@file.md",
             "gh api /repos/owner/repo/issues --field title=test",
@@ -1307,6 +1307,64 @@ class TestGhApiReadAllowed:
     )
     def test_allowed(self, command: str) -> None:
         assert block_commands.check_command(command) is None
+
+
+class TestGhApiGraphqlQueryAllowed:
+    """gh api graphql with query operations must be allowed."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # Shorthand query (no explicit query keyword)
+            "gh api graphql -f query='{viewer{login}}'",
+            # Explicit query keyword
+            "gh api graphql -f query='query { viewer { login } }'",
+            # Query with variables using -f and -F flags
+            (
+                "gh api graphql -f query='"
+                "query($owner: String!, $repo: String!, $pr: Int!) {"
+                "  repository(owner: $owner, name: $repo) {"
+                "    pullRequest(number: $pr) {"
+                "      reviewThreads(first: 100) {"
+                "        nodes { isResolved }"
+                "      }"
+                "    }"
+                "  }"
+                "}' -f owner='ansible' -f repo='handbook' -F pr=1301"
+            ),
+            # With path prefix
+            "/usr/bin/gh api graphql -f query='{ viewer { login } }'",
+            # With .exe suffix
+            "gh.exe api graphql -f query='{ viewer { login } }'",
+            # With env prefix
+            "env gh api graphql -f query='{ viewer { login } }'",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestGhApiGraphqlMutationBlocked:
+    """gh api graphql with mutation operations must be blocked."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh api graphql -f query='mutation { createIssue(input: {}) { id } }'",
+            (
+                "gh api graphql -f query='mutation CreateIssue"
+                "($input: CreateIssueInput!)"
+                " { createIssue(input: $input) { issue { id } } }'"
+            ),
+            (
+                "/usr/bin/gh api graphql"
+                " -f query='mutation { deleteIssue(input: {})"
+                " { id } }'"
+            ),
+        ],
+    )
+    def test_blocked(self, command: str) -> None:
+        assert block_commands.check_command(command) == "gh api (mutation)"
 
 
 class TestGhIssueMutationsBlocked:
