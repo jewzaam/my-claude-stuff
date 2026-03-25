@@ -10,6 +10,7 @@ import pytest
 from scripts.session_tracker import (
     _normalize_project_dir,
     get_daily_cost,
+    get_previous_day_cost,
     get_project_cost,
     track_session,
 )
@@ -156,6 +157,120 @@ class TestGetDailyCost:
         assert total == pytest.approx(2.00)
 
 
+class TestGetPreviousDayCost:
+    def test_sums_most_recent_prior_day(self, tmp_path):
+        yesterday = tmp_path / "2020-01-01"
+        yesterday.mkdir()
+        (yesterday / "s1.json").write_text(
+            json.dumps(_make_session_data(session_id="s1", cost_usd=2.00))
+        )
+        (yesterday / "s2.json").write_text(
+            json.dumps(_make_session_data(session_id="s2", cost_usd=3.50))
+        )
+
+        # Today's data should be ignored
+        track_session(
+            _make_session_data(session_id="today", cost_usd=99.00),
+            base_dir=tmp_path,
+        )
+
+        total, count = get_previous_day_cost(base_dir=tmp_path)
+        assert total == pytest.approx(5.50)
+        assert count == 2
+
+    def test_picks_most_recent_day(self, tmp_path):
+        old = tmp_path / "2020-01-01"
+        old.mkdir()
+        (old / "s1.json").write_text(
+            json.dumps(_make_session_data(session_id="s1", cost_usd=1.00))
+        )
+
+        recent = tmp_path / "2020-06-15"
+        recent.mkdir()
+        (recent / "s2.json").write_text(
+            json.dumps(_make_session_data(session_id="s2", cost_usd=7.00))
+        )
+
+        # Today's dir so both prior dirs qualify
+        track_session(
+            _make_session_data(session_id="today", cost_usd=0.10),
+            base_dir=tmp_path,
+        )
+
+        total, count = get_previous_day_cost(base_dir=tmp_path)
+        assert total == pytest.approx(7.00)
+        assert count == 1
+
+    def test_returns_zero_when_no_prior_days(self, tmp_path):
+        # Only today exists
+        track_session(
+            _make_session_data(session_id="s1", cost_usd=5.00),
+            base_dir=tmp_path,
+        )
+
+        total, count = get_previous_day_cost(base_dir=tmp_path)
+        assert total == 0.0
+        assert count == 0
+
+    def test_returns_zero_for_missing_dir(self, tmp_path):
+        total, count = get_previous_day_cost(base_dir=tmp_path / "nonexistent")
+        assert total == 0.0
+        assert count == 0
+
+    def test_skips_malformed_json(self, tmp_path):
+        day = tmp_path / "2020-01-01"
+        day.mkdir()
+        (day / "good.json").write_text(
+            json.dumps(_make_session_data(session_id="good", cost_usd=4.00))
+        )
+        (day / "bad.json").write_text("not json{{{")
+
+        # Need today to exist so 2020-01-01 counts as "previous"
+        track_session(
+            _make_session_data(session_id="today", cost_usd=0.10),
+            base_dir=tmp_path,
+        )
+
+        total, count = get_previous_day_cost(base_dir=tmp_path)
+        assert total == pytest.approx(4.00)
+        assert count == 1
+
+    def test_ignores_non_json_files(self, tmp_path):
+        day = tmp_path / "2020-01-01"
+        day.mkdir()
+        (day / "s1.json").write_text(
+            json.dumps(_make_session_data(session_id="s1", cost_usd=2.00))
+        )
+        (day / "notes.txt").write_text("not a session")
+
+        track_session(
+            _make_session_data(session_id="today", cost_usd=0.10),
+            base_dir=tmp_path,
+        )
+
+        total, count = get_previous_day_cost(base_dir=tmp_path)
+        assert total == pytest.approx(2.00)
+        assert count == 1
+
+    def test_handles_missing_cost_field(self, tmp_path):
+        day = tmp_path / "2020-01-01"
+        day.mkdir()
+        (day / "no-cost.json").write_text(json.dumps({"session_id": "x"}))
+        (day / "good.json").write_text(
+            json.dumps(_make_session_data(session_id="good", cost_usd=3.00))
+        )
+
+        track_session(
+            _make_session_data(session_id="today", cost_usd=0.10),
+            base_dir=tmp_path,
+        )
+
+        total, count = get_previous_day_cost(base_dir=tmp_path)
+        assert total == pytest.approx(3.00)
+        # Both files are counted (one has cost 0.0, other has 3.00)
+        assert count == 2
+
+
 class TestNormalizeProjectDir:
     def test_plain_path_unchanged(self):
         path = "/home/user/source/myproject"
@@ -168,6 +283,20 @@ class TestNormalizeProjectDir:
     def test_no_worktree_name_unchanged(self):
         # git-worktrees at the end without a child stays as-is
         path = "/home/user/git-worktrees"
+        assert _normalize_project_dir(path) == path
+
+    def test_windows_path_unchanged(self):
+        path = "C:/Users/jewza/source/myproject"
+        assert _normalize_project_dir(path) == path
+
+    def test_windows_worktree_stripped(self):
+        wt = "C:/Users/jewza/source/myproject/git-worktrees/abc123"
+        assert _normalize_project_dir(wt) == "C:/Users/jewza/source/myproject"
+
+    def test_windows_backslash_path(self):
+        # PurePosixPath treats backslashes as part of the name, not separators.
+        # Callers are expected to normalize to forward slashes before calling.
+        path = "C:/Users/jewza/source/myproject"
         assert _normalize_project_dir(path) == path
 
 
