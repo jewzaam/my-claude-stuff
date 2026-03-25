@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-This repo uses Claude Code hooks to block destructive commands, send desktop notifications, and log prompts/responses/questions. All hooks are configured in `claude/settings.json` and deployed via `make reconcile`.
+This repo uses Claude Code hooks to block destructive commands and log prompts/responses/questions. All hooks are configured in `claude/settings.json` and deployed via `make reconcile`.
 
 ## What Are Hooks
 
@@ -20,21 +20,9 @@ Configuration lives in `claude/settings.json` under the `hooks` key.
 |-------|--------|---------|
 | `PreToolUse` (Bash) | `block_commands.py` | Block destructive commands. See `docs/block-commands-design.md` for details. |
 | `PreToolUse` (all) | `block_paths.py` | Block access to sensitive directories (~/.ssh, ~/.aws, ~/.kube, ~/.ocm) and credential files. See `docs/blocked-commands-reference.md` for details. |
-| `Notification` | `notify.py` | Desktop notifications for permission prompts and input dialogs |
-| `Stop` | `notify.py` | Desktop notification when task completes |
 | `PostToolUse` (AskUserQuestion) | `prompt_log.py` | Log questions asked and user's answers to JSONL |
 | `Stop` | `prompt_log.py` | Log Claude's response to JSONL |
 | `UserPromptSubmit` | `prompt_log.py` | Log user's prompt to JSONL |
-
-## Notification Hook (`scripts/notify.py`)
-
-Sends desktop notifications for actionable events only:
-
-- **permission_prompt** -- Claude needs approval (critical urgency)
-- **elicitation_dialog** -- Claude needs user input (critical urgency)
-- **Stop** -- task complete (normal urgency)
-
-Non-actionable events (idle_prompt, auth_success) are silently ignored. Platform-aware: Linux uses `notify-send`, Windows is stubbed. Notifications include the working directory for context when running multiple sessions.
 
 ## Prompt Log Hook (`scripts/prompt_log.py`)
 
