@@ -34,7 +34,8 @@ Blocked categories:
   GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
            Keep, Forms, Docs, Slides (writes), Classroom, Workflow (all),
            Meet (mutations), Events (subscriptions)
-  GitHub CLI: gh api (mutation indicators: non-GET method, field/body flags),
+  GitHub CLI: gh api (mutation indicators: non-GET method, field/body flags;
+              exception: gh api graphql query operations are read-only),
               issue/pr/repo/release/gist/label/project (mutations),
               run/workflow (mutations), secret/variable (mutations),
               deploy-key/ssh-key/gpg-key (mutations),
@@ -74,6 +75,12 @@ PRESPLIT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         "pipe-to-shell",
     ),
 ]
+
+# Detect `gh api graphql` commands (with optional path/env/exe prefixes)
+_GH_API_GRAPHQL_RE = re.compile(rf"{_ENV}{_PATH}gh{_EXE}\s+api\s+graphql\b")
+
+# Detect GraphQL mutation operations within -f query='...' value
+_GRAPHQL_MUTATION_RE = re.compile(r"\bmutation\b")
 
 BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # git -C: unnecessary when already in the target directory; use plain git
@@ -570,6 +577,14 @@ def check_command(command: str) -> str | None:
     for pattern, name in PRESPLIT_PATTERNS:
         if pattern.search(check_text):
             return name
+
+    # 3b. GraphQL query exception: gh api graphql with -f/-F flags is only
+    # mutating if the query contains a 'mutation' operation.  Query operations
+    # (explicit 'query' keyword or shorthand '{...}') are read-only.
+    if _GH_API_GRAPHQL_RE.search(check_text):
+        if _GRAPHQL_MUTATION_RE.search(check_text):
+            return "gh api (mutation)"
+        return None
 
     # 4. Split into chain segments
     segments = split_command_chain(check_text)
