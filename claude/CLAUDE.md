@@ -78,6 +78,7 @@
 - **Clarify before planning**: run `/speckit.clarify` before `/speckit.plan` unless the user explicitly skips it
 
 ## Tool Usage
+- **Prefer allowlisted tools only** — before using a tool, call `mcp__allowlist__get_allowed_permissions` to check what's permitted. Stick to allowlisted tools to avoid unnecessary approval prompts
 - **Minimize approval prompts** — prefer dedicated tools (Read, Glob, Grep, Edit) over Bash
 - **Never chain Bash commands with `;`** — use `&&` for dependent chaining or make separate Bash tool calls. Semicolons defeat hook-based command inspection.
 - Don't use unnecessary `cd` when the working directory is already correct
