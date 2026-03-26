@@ -54,6 +54,7 @@
 - Create dependency management files when building from scratch
 - **Versioning**: new projects start at `0.1.0`, follow [SemVer](https://semver.org/). User decides when to bump.
 - Put investigative/exploratory code in durable scripts (e.g., `scripts/explore/`), not inline `python -c` commands — scripts are reproducible, reviewable, and portable
+- **Use `python -m <module>`** instead of naked commands (e.g., `python -m pip` not `pip`, `python -m pytest` not `pytest`) — ensures the correct interpreter and environment
 
 ## Reviews
 - Capture reviews in `Review-<short context>.md` in the project root
