@@ -424,6 +424,8 @@
       "Bash(make typecheck *)",
       "Bash(make version-check *)",
       "Bash(wc *)",
+      "Edit(~/source/standards/**)",
+      "Read(~/source/standards/**)",
       "Skill(commit)",
       "Skill(fix)",
       "Skill(voice)",
