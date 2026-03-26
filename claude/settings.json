@@ -422,6 +422,7 @@
       "Bash(make test *)",
       "Bash(make test-unit *)",
       "Bash(make typecheck *)",
+      "Bash(make version-check *)",
       "Bash(wc *)",
       "Skill(commit)",
       "Skill(fix)",
