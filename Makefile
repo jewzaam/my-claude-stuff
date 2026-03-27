@@ -1,4 +1,4 @@
-.PHONY: install install-dev install-no-deps uninstall clean format format-check lint typecheck test test-verbose coverage default check help migrate reconcile
+.PHONY: install install-dev install-no-deps uninstall clean format format-check lint typecheck test test-verbose coverage default check help migrate reconcile memory-pull memory-push memory-diff
 
 VENV_DIR ?= .venv
 DATA_DIR := $(HOME)/.claude/my-claude-stuff-data
@@ -70,6 +70,15 @@ migrate:  ## Merge legacy data dirs into my-claude-stuff-data/
 
 reconcile: migrate  ## Push claude/ config to ~/.claude/
 	$(PYTHON) scripts/reconcile.py claude/ $(HOME)/.claude/
+
+memory-diff:  ## Show differences between repo and live memory
+	@$(PYTHON) scripts/memory_sync.py diff
+
+memory-pull:  ## Pull ~/.claude/memory/ into claude/memory/
+	@$(PYTHON) scripts/memory_sync.py pull
+
+memory-push:  ## Push claude/memory/ to ~/.claude/memory/
+	@$(PYTHON) scripts/memory_sync.py push
 
 help:  ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
