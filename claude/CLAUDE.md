@@ -2,6 +2,7 @@
 
 ## Restrictions
 - **Never execute**: `git push`, `sudo`, or `su`
+- **`git -C` is allowed only for `git-worktrees/` paths** (e.g., `git -C git-worktrees/my-pr/ log`) — all other `git -C` usage is blocked
 - **No commits to default branches** unless explicitly instructed
 - **Work on fork/feature branches** or current branch if specified
 - **Never use destructive data operations** (wipe DB, drop tables, destructive migrations) without explicit user approval
