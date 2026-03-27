@@ -13,7 +13,8 @@ Preprocessing pipeline:
   5. Check each segment against BLOCKED_PATTERNS
 
 Blocked categories:
-  Git: -C flag (use plain git), add, push, reset, clean (except -n),
+  Git: -C flag (use plain git; exception: git-worktrees/ paths),
+       add, push, reset, clean (except -n),
        branch (destructive flags only),
        stash (except list/show), commit --amend/-a, checkout -- (discard),
        restore (except --staged), rebase, filter-branch, filter-repo,
@@ -84,8 +85,9 @@ _GRAPHQL_MUTATION_RE = re.compile(r"\bmutation\b")
 
 BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # git -C: unnecessary when already in the target directory; use plain git
+    # Exception: git -C <path>/git-worktrees/<worktree>/ is allowed for local PR review
     (
-        re.compile(rf"{_ENV}{_PATH}git{_EXE}\s+-C\b"),
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}\s+-C\s+(?!\S*git-worktrees/)"),
         "git -C (you are already in the repo directory — use git without -C)",
     ),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+add\b"), "git add"),

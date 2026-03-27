@@ -110,6 +110,19 @@ class TestCheckCommand:
         assert result is not None
         assert "git -C" in result
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git -C git-worktrees/my-pr/ status",
+            "git -C ./git-worktrees/my-pr/ log --oneline",
+            "git -C /home/user/repo/git-worktrees/pr-123/ diff",
+            "/usr/bin/git -C git-worktrees/feature-branch/ branch",
+            "env git -C git-worktrees/fix/ status",
+        ],
+    )
+    def test_git_dash_c_worktrees_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
     def test_su_standalone(self) -> None:
         assert block_commands.check_command("su") == "su"
         assert block_commands.check_command("su -") == "su"
