@@ -319,11 +319,6 @@ def main():
             age_str = format_duration(age_seconds)
             parts.append(f"({ANSI_RED}!{age_str}{ANSI_RESET})")
 
-    # When invoked directly (python3 path/to/statusline.py), the parent
-    # of scripts/ must be on sys.path for the package import to work.
-    _scripts_parent = str(Path(__file__).resolve().parent.parent)
-    if _scripts_parent not in sys.path:
-        sys.path.insert(0, _scripts_parent)
     from scripts.session_tracker import get_daily_cost, get_project_cost, track_session
 
     track_session(data)
