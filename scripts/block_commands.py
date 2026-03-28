@@ -32,6 +32,7 @@ Blocked categories:
   Cross-platform: curl/wget piped to shell/interpreter (presplit)
               sh, bash, dash, ksh, csh, tcsh, zsh, fish,
               python, python3, pythonw, perl, ruby, node
+  Make targets: python -m pytest/mypy/black/flake8/mutmut (use make targets)
   GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
            Keep, Forms, Docs, Slides (writes), Classroom, Workflow (all),
            Meet (mutations), Events (subscriptions)
@@ -235,6 +236,27 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # PowerShell process/service cmdlets
     (re.compile(r"\bStop-Service\b", re.IGNORECASE), "Stop-Service"),
     (re.compile(r"\bStop-Process\b", re.IGNORECASE), "Stop-Process"),
+    # Make targets: block direct python -m invocations that have make equivalents
+    (
+        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+pytest\b"),
+        "python -m pytest (use make test or make coverage)",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+mypy\b"),
+        "python -m mypy (use make typecheck)",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+black\b"),
+        "python -m black (use make format)",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+flake8\b"),
+        "python -m flake8 (use make lint)",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+mutmut\b"),
+        "python -m mutmut (use make mutation-test)",
+    ),
     # GWS CLI mutation blocking (defense-in-depth alongside OAuth scope control)
     # Gmail: NEVER allow mutations — primary email egress risk
     (
