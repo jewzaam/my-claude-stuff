@@ -815,6 +815,63 @@ class TestCheckCommand:
     def test_network_tools_blocked(self, command: str, expected: str) -> None:
         assert block_commands.check_command(command) == expected
 
+    # --- Make targets: block direct python -m for tools with make equivalents ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("python -m pytest", "python -m pytest (use make test or make coverage)"),
+            ("python3 -m pytest", "python -m pytest (use make test or make coverage)"),
+            (
+                "python -m pytest tests/",
+                "python -m pytest (use make test or make coverage)",
+            ),
+            (
+                "python -m pytest -v tests/test_foo.py",
+                "python -m pytest (use make test or make coverage)",
+            ),
+            (
+                "/usr/bin/python3 -m pytest",
+                "python -m pytest (use make test or make coverage)",
+            ),
+            (
+                "env python3 -m pytest",
+                "python -m pytest (use make test or make coverage)",
+            ),
+            ("python -m mypy", "python -m mypy (use make typecheck)"),
+            ("python3 -m mypy", "python -m mypy (use make typecheck)"),
+            ("python -m mypy src/", "python -m mypy (use make typecheck)"),
+            ("python -m black", "python -m black (use make format)"),
+            ("python3 -m black .", "python -m black (use make format)"),
+            ("python -m black --check src/", "python -m black (use make format)"),
+            ("python -m flake8", "python -m flake8 (use make lint)"),
+            ("python3 -m flake8 src/", "python -m flake8 (use make lint)"),
+            ("python -m mutmut", "python -m mutmut (use make mutation-test)"),
+            ("python3 -m mutmut run", "python -m mutmut (use make mutation-test)"),
+        ],
+    )
+    def test_python_module_make_targets_blocked(
+        self, command: str, expected: str
+    ) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "python -m pip install foo",
+            "python3 -m venv .venv",
+            "python -m http.server 8080",
+            "python3 script.py",
+            "python -c 'print(1)'",
+            "make test",
+            "make typecheck",
+            "make format",
+            "make lint",
+        ],
+    )
+    def test_python_module_non_make_targets_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
     def test_blocked_word_in_heredoc_not_matched(self) -> None:
         cmd = "git commit -m \"$(cat <<'EOF'\ngit add blocked\nEOF\n)\""
         assert block_commands.check_command(cmd) is None
