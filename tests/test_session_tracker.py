@@ -156,6 +156,88 @@ class TestGetDailyCost:
         total = get_daily_cost(base_dir=tmp_path)
         assert total == pytest.approx(2.00)
 
+    def test_subtracts_prior_day_cost_for_resumed_session(self, tmp_path):
+        # Session existed yesterday with $8.00
+        yesterday_dir = tmp_path / "2020-01-01"
+        yesterday_dir.mkdir()
+        (yesterday_dir / "resumed.json").write_text(
+            json.dumps(_make_session_data(session_id="resumed", cost_usd=8.00))
+        )
+
+        # Same session today shows $10.00 cumulative —
+        # track_session snapshots prior cost on first write
+        track_session(
+            _make_session_data(session_id="resumed", cost_usd=10.00),
+            base_dir=tmp_path,
+        )
+        # New session today with $3.00
+        track_session(
+            _make_session_data(session_id="new", cost_usd=3.00),
+            base_dir=tmp_path,
+        )
+
+        # Daily total should be (10 - 8) + 3 = 5, not 13
+        total = get_daily_cost(base_dir=tmp_path)
+        assert total == pytest.approx(5.00)
+
+    def test_uses_most_recent_prior_day_for_subtraction(self, tmp_path):
+        # Session existed two days ago with $2.00
+        old_dir = tmp_path / "2020-01-01"
+        old_dir.mkdir()
+        (old_dir / "s1.json").write_text(
+            json.dumps(_make_session_data(session_id="s1", cost_usd=2.00))
+        )
+
+        # Same session yesterday with $5.00
+        yesterday_dir = tmp_path / "2020-06-15"
+        yesterday_dir.mkdir()
+        (yesterday_dir / "s1.json").write_text(
+            json.dumps(_make_session_data(session_id="s1", cost_usd=5.00))
+        )
+
+        # Same session today with $7.00
+        track_session(
+            _make_session_data(session_id="s1", cost_usd=7.00),
+            base_dir=tmp_path,
+        )
+
+        # Should subtract most recent prior ($5), not oldest ($2)
+        total = get_daily_cost(base_dir=tmp_path)
+        assert total == pytest.approx(2.00)
+
+    def test_no_prior_day_means_full_cost(self, tmp_path):
+        # New session with no history
+        track_session(
+            _make_session_data(session_id="brand-new", cost_usd=4.00),
+            base_dir=tmp_path,
+        )
+
+        total = get_daily_cost(base_dir=tmp_path)
+        assert total == pytest.approx(4.00)
+
+    def test_prior_cost_preserved_across_updates(self, tmp_path):
+        # Session existed yesterday with $5.00
+        yesterday_dir = tmp_path / "2020-01-01"
+        yesterday_dir.mkdir()
+        (yesterday_dir / "s1.json").write_text(
+            json.dumps(_make_session_data(session_id="s1", cost_usd=5.00))
+        )
+
+        # First write today — snapshots prior cost
+        track_session(
+            _make_session_data(session_id="s1", cost_usd=6.00),
+            base_dir=tmp_path,
+        )
+        # Second write today — cost grew but prior snapshot stays at $5
+        track_session(
+            _make_session_data(session_id="s1", cost_usd=9.00),
+            base_dir=tmp_path,
+        )
+
+        # Daily delta should be 9 - 5 = 4, not 9 - 6
+        total = get_daily_cost(base_dir=tmp_path)
+        assert total == pytest.approx(4.00)
+
 
 class TestGetPreviousDayCost:
     def test_sums_most_recent_prior_day(self, tmp_path):

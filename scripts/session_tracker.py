@@ -33,7 +33,12 @@ WORKTREE_DIR_NAME = "git-worktrees"
 
 
 def track_session(data, base_dir=DEFAULT_DIR):
-    """Write the full statusline JSON blob to {date}/{session_id}.json."""
+    """Write the full statusline JSON blob to {date}/{session_id}.json.
+
+    On the first write of a session each day, snapshots the prior
+    cost into _prior_cost so get_daily_cost can compute today's
+    delta without scanning historical directories.
+    """
     session_id = data.get("session_id")
     if not session_id:
         return
@@ -42,10 +47,25 @@ def track_session(data, base_dir=DEFAULT_DIR):
     if not re.match(r"^[\w-]+$", session_id):
         return
 
-    today_dir = Path(base_dir) / date.today().isoformat()
+    today_str = date.today().isoformat()
+    today_dir = Path(base_dir) / today_str
     try:
         today_dir.mkdir(parents=True, exist_ok=True)
         session_file = today_dir / f"{session_id}{SESSION_FILE_SUFFIX}"
+
+        # On first write today, look up prior cost (one-time scan)
+        if not session_file.exists():
+            prior = _find_prior_cost(session_file.name, today_str, base_dir)
+            data = dict(data, _prior_cost=prior)
+        else:
+            # Preserve the prior cost from the first write
+            try:
+                with open(session_file, "r", encoding="utf-8") as fh:
+                    existing = json.load(fh)
+                data = dict(data, _prior_cost=existing.get("_prior_cost", 0.0))
+            except (json.JSONDecodeError, OSError):
+                data = dict(data, _prior_cost=0.0)
+
         with open(session_file, "w", encoding="utf-8") as fh:
             json.dump(data, fh)
     except OSError:
@@ -65,8 +85,36 @@ def _normalize_project_dir(path):
     return path
 
 
+def _find_prior_cost(session_filename, today_str, base_dir):
+    """Find the prior cost for a session before today.
+
+    Globs for the session file across all date directories, then picks
+    the most recent one before today. Single filesystem call regardless
+    of how many date directories exist.
+    """
+    base = Path(base_dir)
+    matches = sorted(
+        (p for p in base.glob(f"*/{session_filename}") if p.parent.name < today_str),
+        key=lambda p: p.parent.name,
+        reverse=True,
+    )
+    if not matches:
+        return 0.0
+    try:
+        with open(matches[0], "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        return (data.get("cost") or {}).get("total_cost_usd", 0.0)
+    except (json.JSONDecodeError, OSError):
+        return 0.0
+
+
 def get_daily_cost(base_dir=DEFAULT_DIR):
-    """Sum cost.total_cost_usd from all session files in today's directory."""
+    """Sum today's cost delta for all sessions.
+
+    For sessions that span multiple days, subtracts the prior cost
+    snapshot stored in _prior_cost (written by track_session on
+    first appearance each day) so only today's portion is counted.
+    """
     today_dir = Path(base_dir) / date.today().isoformat()
     if not today_dir.is_dir():
         return 0.0
@@ -78,7 +126,9 @@ def get_daily_cost(base_dir=DEFAULT_DIR):
         try:
             with open(session_file, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
-            total += (data.get("cost") or {}).get("total_cost_usd", 0.0)
+            session_cost = (data.get("cost") or {}).get("total_cost_usd", 0.0)
+            prior_cost = data.get("_prior_cost", 0.0)
+            total += session_cost - prior_cost
         except (json.JSONDecodeError, OSError):
             continue
     return total
