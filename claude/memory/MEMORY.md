@@ -17,3 +17,5 @@
 - [Check allowlist first](feedback_use_allowlist.md) — Call mcp__allowlist__get_allowed_permissions before ANY tool use to avoid approval prompts
 - [.claude/ not for output](feedback_claude_dir_security.md) — .claude/ is config only, never write generated content there
 - [No auto-commit](feedback_no_auto_commit.md) — /commit only runs on explicit user request, never automatically
+- [Don't stop on approved work](feedback_dont_stop_approved_work.md) — Execute approved batch of tasks continuously, don't pause for permission between them
+- [Redact strong language](feedback_redact_language.md) — Remove or *** out swear words and acronyms when quoting user in persisted files
