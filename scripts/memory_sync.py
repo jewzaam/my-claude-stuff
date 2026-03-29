@@ -64,6 +64,27 @@ def sync(
     if not changed:
         print("  Already in sync.")
 
+    # After sync, check if MEMORY.md references all .md files in dest.
+    # Inject placeholder entries for any unreferenced files so they
+    # don't get silently forgotten.
+    memory_index = dest_dir / "MEMORY.md"
+    if changed and memory_index.exists():
+        index_text = memory_index.read_text(encoding="utf-8")
+        unreferenced = [
+            name
+            for name in _list_files(dest_dir)
+            if name != "MEMORY.md" and name not in index_text
+        ]
+        if unreferenced:
+            lines = [f"- [TODO]({name}) — UPDATE THIS ENTRY" for name in unreferenced]
+            placeholder_block = "\n\n## Uncategorized\n" + "\n".join(lines) + "\n"
+            if not dryrun:
+                with open(memory_index, "a", encoding="utf-8") as fh:
+                    fh.write(placeholder_block)
+            print(f"\n  Added {len(unreferenced)} placeholder(s) to MEMORY.md:")
+            for name in unreferenced:
+                print(f"    - {name}")
+
     return changed
 
 
