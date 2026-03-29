@@ -16,3 +16,4 @@
 - [Filter resolved PR comments](feedback_resolved_pr_comments.md) — Exclude resolved threads from interactive PR review
 - [Check allowlist first](feedback_use_allowlist.md) — Call mcp__allowlist__get_allowed_permissions before ANY tool use to avoid approval prompts
 - [.claude/ not for output](feedback_claude_dir_security.md) — .claude/ is config only, never write generated content there
+- [No auto-commit](feedback_no_auto_commit.md) — /commit only runs on explicit user request, never automatically
