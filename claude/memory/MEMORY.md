@@ -14,4 +14,5 @@
 - [Always use subagents](feedback_subagent_execution.md) — Never ask subagent vs inline, just use subagent-driven
 - [Write tests for new code](feedback_write_new_tests.md) — Write NEW tests for new functionality, don't just run existing
 - [Filter resolved PR comments](feedback_resolved_pr_comments.md) — Exclude resolved threads from interactive PR review
+- [Check allowlist first](feedback_use_allowlist.md) — Call mcp__allowlist__get_allowed_permissions before ANY tool use to avoid approval prompts
 - [.claude/ not for output](feedback_claude_dir_security.md) — .claude/ is config only, never write generated content there
