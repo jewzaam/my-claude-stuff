@@ -527,6 +527,7 @@
       "Edit(~/source/standards/**)",
       "Read(~/.claude/skills/cited-research/references/*)",
       "Read(~/.claude/skills/engineering-estimate/references/*)",
+      "Read(~/source/cited-research/*)",
       "Read(~/source/standards/**)",
       "Skill(commit)",
       "Skill(fix)",
