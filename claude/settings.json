@@ -526,6 +526,7 @@
       "Bash(make test-unit *)",
       "Bash(make typecheck *)",
       "Bash(make version-check *)",
+      "Bash(md2html *)",
       "Bash(mkdir -p /tmp/cited-research)",
       "Bash(python -m py_compile *)",
       "Bash(wc *)",
