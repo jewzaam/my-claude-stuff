@@ -534,6 +534,7 @@
       "Read(/tmp/cited-research/*)",
       "Read(~/.claude/skills/cited-research/references/*)",
       "Read(~/.claude/skills/engineering-estimate/references/*)",
+      "Read(~/.claude/skills/summarize-transcript/references/*)",
       "Read(~/source/cited-research/*)",
       "Read(~/source/standards/**)",
       "Skill(commit)",
