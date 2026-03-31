@@ -527,6 +527,7 @@
       "Bash(make typecheck *)",
       "Bash(make version-check *)",
       "Bash(mkdir -p /tmp/cited-research)",
+      "Bash(python -m py_compile *)",
       "Bash(wc *)",
       "Edit(~/source/standards/**)",
       "Read(/tmp/cited-research/*)",
