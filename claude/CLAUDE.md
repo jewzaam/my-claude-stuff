@@ -81,16 +81,6 @@
 - One-time suggestion; don't trigger for established projects or non-app work (voice transcription, file downloads, config)
 - Natural timing: after specs capture intent, before implementation
 
-## Spec-Kit Priority
-- Before design/implementation/planning work, **check for existing spec-kit artifacts** in `.specify/specs/` and `.specify/memory/constitution.md`
-- Spec-kit artifacts are the preferred durable design artifact — use them over ad-hoc plans
-- If the project uses spec-kit but no specs exist for the current work, create them via `/speckit.specify`
-- Brainstorming skill complements spec-kit (especially for functional requirements) but doesn't replace it
-- **Workflow order**: constitution → specify → clarify → plan → tasks → implement. Do not skip steps or reorder without explicit user approval
-- **What/why vs how**: specs (`/speckit.specify`) define requirements and user stories — no tech stack, no architecture. Tech decisions belong in `/speckit.plan`
-- **Consult the constitution** (`.specify/memory/constitution.md`) before creating or modifying any spec-kit artifact
-- **Clarify before planning**: run `/speckit.clarify` before `/speckit.plan` unless the user explicitly skips it
-
 ## Tool Usage
 - **Prefer allowlisted tools only** — before using a tool, call `mcp__allowlist__get_allowed_permissions` to check what's permitted. Stick to allowlisted tools to avoid unnecessary approval prompts
 - **Minimize approval prompts** — prefer dedicated tools (Read, Glob, Grep, Edit) over Bash
