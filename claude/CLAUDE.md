@@ -35,6 +35,7 @@
 - **Do not narrate review steps** — after making changes, proceed directly to validation. Do not tell the user to "go review" or "validate" anything; they review on their own terms, often during permission prompts
 - **"Tell me"** means report findings and STOP — do not act on findings unless explicitly asked
 - **Follow skill instructions exactly** — when a skill defines how to handle an edge case, use that instruction; don't override with independent approaches
+- **Never ask about execution strategy** — when skills offer a choice between subagent-driven vs inline execution (or similar), pick whichever is faster and proceed. Do not ask the user.
 
 ## Attribution
 - **Commits**: include `Assisted-by: <Tool> (<Model>)` (e.g., `Assisted-by: Claude Code (Claude Opus 4.6)`)
