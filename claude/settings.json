@@ -528,6 +528,7 @@
       "Bash(make typecheck *)",
       "Bash(make version-check *)",
       "Bash(md2html *)",
+      "Bash(meet-summarize-query *)",
       "Bash(mkdir -p /tmp/cited-research)",
       "Bash(python -m py_compile *)",
       "Bash(wc *)",
