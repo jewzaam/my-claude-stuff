@@ -538,6 +538,7 @@
       "Read(~/.claude/skills/engineering-estimate/references/*)",
       "Read(~/.claude/skills/summarize-transcript/references/*)",
       "Read(~/source/cited-research/*)",
+      "Read(~/source/cited-research/*)",
       "Read(~/source/gws-cli-notes/*)",
       "Read(~/source/standards/**)",
       "Skill(commit)",
