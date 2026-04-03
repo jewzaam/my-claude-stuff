@@ -12,6 +12,7 @@ scalars from src overwrite dest.
 import argparse
 import json
 import logging
+import platform
 import shutil
 import sys
 from pathlib import Path
@@ -80,6 +81,53 @@ def reconcile_claude_md(
     return True
 
 
+def _adapt_python_command(command: str) -> str:
+    """Replace 'python3 ' with platform-appropriate bootstrap command.
+
+    Source settings.json uses 'python3' (works on Linux/macOS).
+    On Windows, 'python3' is a Microsoft Store stub; 'py -3' is correct.
+    """
+    if platform.system() != "Windows":
+        return command
+    if command.startswith("python3 "):
+        return "py -3 " + command[len("python3 ") :]
+    return command
+
+
+def _adapt_hooks(settings: dict) -> dict:
+    """Adapt hook and statusLine commands for the current platform."""
+    settings = dict(settings)
+
+    # Adapt hook commands
+    hooks = settings.get("hooks")
+    if isinstance(hooks, dict):
+        adapted_hooks = {}
+        for event, hook_list in hooks.items():
+            adapted_list = []
+            for entry in hook_list:
+                entry = dict(entry)
+                inner_hooks = entry.get("hooks", [])
+                adapted_inner = []
+                for hook in inner_hooks:
+                    hook = dict(hook)
+                    if "command" in hook:
+                        hook["command"] = _adapt_python_command(hook["command"])
+                    adapted_inner.append(hook)
+                entry["hooks"] = adapted_inner
+                adapted_list.append(entry)
+            adapted_hooks[event] = adapted_list
+        settings["hooks"] = adapted_hooks
+
+    # Adapt statusLine command
+    status_line = settings.get("statusLine")
+    if isinstance(status_line, dict) and "command" in status_line:
+        status_line = dict(status_line)
+        status_line["command"] = _adapt_python_command(status_line["command"])
+        settings["statusLine"] = status_line
+
+    return settings
+
+
 def reconcile_settings(
     src_dir: Path,
     dest_dir: Path,
@@ -102,6 +150,7 @@ def reconcile_settings(
         dest_data = {}
 
     merged = merge_settings(dest_data, src_data)
+    merged = _adapt_hooks(merged)
 
     if merged == dest_data:
         logger.info("settings.json already in sync")

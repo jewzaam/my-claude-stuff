@@ -10,6 +10,8 @@ import pytest
 from scripts.reconcile import (
     EXIT_ERROR,
     EXIT_SUCCESS,
+    _adapt_hooks,
+    _adapt_python_command,
     main,
     merge_settings,
     reconcile_claude_md,
@@ -75,6 +77,118 @@ class TestMergeSettings:
         src = {"key": "replaced"}
         result = merge_settings(dest, src)
         assert result["key"] == "replaced"
+
+
+class TestAdaptPythonCommand:
+    def test_replaces_python3_on_windows(self, monkeypatch):
+        monkeypatch.setattr("scripts.reconcile.platform.system", lambda: "Windows")
+        assert _adapt_python_command("python3 ~/foo.py") == "py -3 ~/foo.py"
+
+    def test_preserves_python3_on_linux(self, monkeypatch):
+        monkeypatch.setattr("scripts.reconcile.platform.system", lambda: "Linux")
+        assert _adapt_python_command("python3 ~/foo.py") == "python3 ~/foo.py"
+
+    def test_preserves_python3_on_darwin(self, monkeypatch):
+        monkeypatch.setattr("scripts.reconcile.platform.system", lambda: "Darwin")
+        assert _adapt_python_command("python3 ~/foo.py") == "python3 ~/foo.py"
+
+    def test_no_change_when_no_python3_prefix(self, monkeypatch):
+        monkeypatch.setattr("scripts.reconcile.platform.system", lambda: "Windows")
+        assert _adapt_python_command("node ~/foo.js") == "node ~/foo.js"
+
+    def test_only_replaces_at_start(self, monkeypatch):
+        monkeypatch.setattr("scripts.reconcile.platform.system", lambda: "Windows")
+        # "python3" not at start should not be replaced
+        assert _adapt_python_command("env python3 ~/foo.py") == "env python3 ~/foo.py"
+
+
+class TestAdaptHooks:
+    def test_adapts_hook_commands(self, monkeypatch):
+        monkeypatch.setattr("scripts.reconcile.platform.system", lambda: "Windows")
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "hooks": [
+                            {
+                                "command": "python3 ~/.claude/scripts/block.py",
+                                "type": "command",
+                            }
+                        ],
+                        "matcher": "Bash",
+                    }
+                ]
+            }
+        }
+        result = _adapt_hooks(settings)
+        hook_cmd = result["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        assert hook_cmd == "py -3 ~/.claude/scripts/block.py"
+
+    def test_adapts_statusline_command(self, monkeypatch):
+        monkeypatch.setattr("scripts.reconcile.platform.system", lambda: "Windows")
+        settings = {
+            "statusLine": {
+                "command": "python3 ~/.claude/scripts/status.py",
+                "type": "command",
+            }
+        }
+        result = _adapt_hooks(settings)
+        assert result["statusLine"]["command"] == "py -3 ~/.claude/scripts/status.py"
+
+    def test_no_change_on_linux(self, monkeypatch):
+        monkeypatch.setattr("scripts.reconcile.platform.system", lambda: "Linux")
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "hooks": [
+                            {
+                                "command": "python3 ~/.claude/scripts/block.py",
+                                "type": "command",
+                            }
+                        ],
+                        "matcher": "Bash",
+                    }
+                ]
+            },
+            "statusLine": {
+                "command": "python3 ~/.claude/scripts/status.py",
+                "type": "command",
+            },
+        }
+        result = _adapt_hooks(settings)
+        assert (
+            result["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+            == "python3 ~/.claude/scripts/block.py"
+        )
+        assert result["statusLine"]["command"] == "python3 ~/.claude/scripts/status.py"
+
+    def test_preserves_non_hook_keys(self, monkeypatch):
+        monkeypatch.setattr("scripts.reconcile.platform.system", lambda: "Windows")
+        settings = {
+            "spinnerTipsEnabled": False,
+            "permissions": {"allow": ["Bash(ls:*)"]},
+        }
+        result = _adapt_hooks(settings)
+        assert result["spinnerTipsEnabled"] is False
+        assert result["permissions"] == {"allow": ["Bash(ls:*)"]}
+
+    def test_does_not_mutate_input(self, monkeypatch):
+        monkeypatch.setattr("scripts.reconcile.platform.system", lambda: "Windows")
+        original_cmd = "python3 ~/.claude/scripts/block.py"
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "hooks": [{"command": original_cmd, "type": "command"}],
+                        "matcher": "",
+                    }
+                ]
+            }
+        }
+        _adapt_hooks(settings)
+        # Original should be unchanged
+        assert settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == original_cmd
 
 
 class TestReconcileClaudeMd:

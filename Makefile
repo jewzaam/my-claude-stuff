@@ -4,8 +4,10 @@ VENV_DIR ?= .venv
 DATA_DIR := $(HOME)/.claude/my-claude-stuff-data
 ifeq ($(OS),Windows_NT)
     PYTHON := $(VENV_DIR)/Scripts/python.exe
+    PYTHON_BOOTSTRAP := py -3
 else
     PYTHON := $(VENV_DIR)/bin/python
+    PYTHON_BOOTSTRAP := python3
 endif
 
 $(info venv: $(VENV_DIR))
@@ -15,7 +17,7 @@ default: format lint typecheck test coverage  ## Run all checks (format, lint, t
 check: default  ## Alias for default
 
 $(PYTHON):
-	python3 -m venv $(VENV_DIR)
+	$(PYTHON_BOOTSTRAP) -m venv $(VENV_DIR)
 
 install: $(PYTHON)  ## Install package
 	$(PYTHON) -m pip install .
