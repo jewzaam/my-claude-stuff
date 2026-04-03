@@ -144,7 +144,7 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     ),
     (
         re.compile(
-            rf"{_ENV}{_PATH}rm{_EXE}\s+.*"
+            rf"{_ENV}{_PATH}\brm{_EXE}\s+.*"
             r"(?:(?<=\s)-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)\b"
         ),
         "rm (recursive)",
