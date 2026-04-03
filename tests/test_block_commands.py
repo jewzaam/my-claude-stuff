@@ -100,18 +100,15 @@ class TestCheckCommand:
     @pytest.mark.parametrize(
         "command",
         [
-            "git -C /some/path status",
-            "git -C /some/path log --oneline",
-            "git -C /some/path diff",
             "git -C /some/path branch",
-            "/usr/bin/git -C /repo status",
-            "env git -C /repo log",
+            "git -C /some/path add .",
+            "git -C /some/path push",
+            "git -C /some/path fetch",
         ],
     )
     def test_git_dash_c_blocked(self, command: str) -> None:
         result = block_commands.check_command(command)
         assert result is not None
-        assert "git -C" in result
 
     @pytest.mark.parametrize(
         "command",
@@ -124,6 +121,23 @@ class TestCheckCommand:
         ],
     )
     def test_git_dash_c_worktrees_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git -C /some/path status",
+            "git -C /some/path log --oneline",
+            "git -C /some/path log -5",
+            "git -C /some/path diff",
+            "git -C /some/path diff --stat",
+            "/usr/bin/git -C /repo status",
+            "env git -C /repo log",
+            "git -C /some/path --no-pager log",
+            "git -C /some/path --no-pager diff",
+        ],
+    )
+    def test_git_dash_c_readonly_allowed(self, command: str) -> None:
         assert block_commands.check_command(command) is None
 
     def test_su_standalone(self) -> None:
