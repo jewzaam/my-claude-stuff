@@ -253,7 +253,7 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         "rg (use the built-in Grep tool)",
     ),
     (
-        re.compile(rf"{_ENV}{_PATH}find{_EXE}\b"),
+        re.compile(rf"{_ENV}{_PATH}(?<!-)find{_EXE}\b"),
         "find (use the built-in Glob tool)",
     ),
     # Make targets: block direct python -m invocations that have make equivalents
