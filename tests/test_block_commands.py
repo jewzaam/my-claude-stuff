@@ -833,6 +833,17 @@ class TestCheckCommand:
     def test_network_tools_blocked(self, command: str, expected: str) -> None:
         assert block_commands.check_command(command) == expected
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "radon cc src/ -a -nc",
+            "some-tool -nc output.txt",
+            "command --nc flag",
+        ],
+    )
+    def test_network_tool_flag_false_positives_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
     # --- Dedicated tools: grep/rg blocked (use built-in Grep tool) ---
 
     @pytest.mark.parametrize(

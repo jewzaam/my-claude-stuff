@@ -192,7 +192,7 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bcargo\s+publish\b"), "cargo publish"),
     (re.compile(r"\bdotnet\s+nuget\s+push\b"), "dotnet nuget push"),
     # Network/remote access tools
-    (re.compile(r"\b(?:nc|netcat|ncat)\b"), "nc/netcat (network tool)"),
+    (re.compile(r"(?<![-/])\b(?:nc|netcat|ncat)\b"), "nc/netcat (network tool)"),
     (re.compile(rf"{_ENV}{_PATH}scp{_EXE}\b"), "scp"),
     (re.compile(rf"{_ENV}{_PATH}rsync{_EXE}\b"), "rsync"),
     (re.compile(r"\b(?:s?ftp)\b"), "ftp/sftp"),
