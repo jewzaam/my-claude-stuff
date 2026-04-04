@@ -33,6 +33,7 @@ Blocked categories:
   Cross-platform: curl/wget piped to shell/interpreter (presplit)
               sh, bash, dash, ksh, csh, tcsh, zsh, fish,
               python, python3, pythonw, perl, ruby, node
+  Dedicated tools: grep, rg (use built-in Grep tool), find (use built-in Glob tool)
   Make targets: python -m pytest/mypy/black/flake8/mutmut (use make targets)
   GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
            Keep, Forms, Docs, Slides (writes), Classroom, Workflow (all),
@@ -242,6 +243,19 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # PowerShell process/service cmdlets
     (re.compile(r"\bStop-Service\b", re.IGNORECASE), "Stop-Service"),
     (re.compile(r"\bStop-Process\b", re.IGNORECASE), "Stop-Process"),
+    # Dedicated tools: block Bash grep/rg/find — use built-in Grep/Glob tools
+    (
+        re.compile(rf"{_ENV}{_PATH}grep{_EXE}\b"),
+        "grep (use the built-in Grep tool)",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}rg{_EXE}\b"),
+        "rg (use the built-in Grep tool)",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}find{_EXE}\b"),
+        "find (use the built-in Glob tool)",
+    ),
     # Make targets: block direct python -m invocations that have make equivalents
     (
         re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+pytest\b"),
