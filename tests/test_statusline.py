@@ -622,6 +622,51 @@ class TestMain:
         assert "Context:" not in output
         assert "Sonnet" in output
 
+    def test_extra_usage_shown_at_100pct(self, monkeypatch, capsys):
+        usage = {
+            "five_hour": {"utilization": 100.0},
+            "seven_day": {"utilization": 22.0},
+            "extra_usage": {
+                "is_enabled": True,
+                "monthly_limit": 5000,
+                "used_credits": 1517,
+                "utilization": 30.34,
+            },
+        }
+        output = self._run_main(monkeypatch, capsys, SAMPLE_STDIN, usage=usage)
+        assert "100%" in output
+        assert "$15/$50" in output
+
+    def test_extra_usage_hidden_below_100pct(self, monkeypatch, capsys):
+        usage = {
+            "five_hour": {"utilization": 80.0},
+            "seven_day": {"utilization": 22.0},
+            "extra_usage": {
+                "is_enabled": True,
+                "monthly_limit": 5000,
+                "used_credits": 1517,
+                "utilization": 30.34,
+            },
+        }
+        output = self._run_main(monkeypatch, capsys, SAMPLE_STDIN, usage=usage)
+        assert "80%" in output
+        assert "$15/$50" not in output
+
+    def test_extra_usage_hidden_when_disabled(self, monkeypatch, capsys):
+        usage = {
+            "five_hour": {"utilization": 100.0},
+            "seven_day": {"utilization": 22.0},
+            "extra_usage": {
+                "is_enabled": False,
+                "monthly_limit": 5000,
+                "used_credits": 0,
+                "utilization": 0,
+            },
+        }
+        output = self._run_main(monkeypatch, capsys, SAMPLE_STDIN, usage=usage)
+        assert "100%" in output
+        assert "$" not in output.split("S/T/P")[0]
+
     def test_default_model(self, monkeypatch, capsys):
         output = self._run_main(monkeypatch, capsys, {})
         assert "Claude" in output

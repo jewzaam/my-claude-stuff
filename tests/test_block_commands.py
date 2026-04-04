@@ -889,6 +889,17 @@ class TestCheckCommand:
     def test_find_blocked(self, command: str, expected: str) -> None:
         assert block_commands.check_command(command) == expected
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "mkdir -p ~/source/project/skills/plan-find",
+            "ls ~/source/project/plan-find/",
+            "cat path-to-find/file.txt",
+        ],
+    )
+    def test_find_in_path_false_positives_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
     # --- Make targets: block direct python -m for tools with make equivalents ---
 
     @pytest.mark.parametrize(

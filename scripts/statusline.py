@@ -14,6 +14,7 @@ Colors:
 Quota labels show time remaining until reset, e.g.:
   3h4m: 20% | 4d12h: 4%
 At most 2 units of precision: d+h, h+m, m+s, or single unit.
+When 5h quota hits 100% and extra usage is enabled, appends $used/$limit.
 Freshness only shown on stale/error: (!5m)
 
 S/T/P = Session / Today / Project cost (USD).
@@ -120,21 +121,23 @@ def colorize_cost(amount):
     return f"\033[38;5;{_COST_SHADES[idx]}m${amount:.2f}{ANSI_RESET}"
 
 
-def colorize_pct(pct):
-    """Return pct formatted as a string with ANSI color based on magnitude.
+def _pct_color(pct):
+    """Return ANSI color code for a percentage value.
 
     Green  < THRESHOLD_MID
     Yellow THRESHOLD_MID to THRESHOLD_HIGH
     Red    >= THRESHOLD_HIGH
     """
-    value = f"{pct:.0f}%"
     if pct >= THRESHOLD_HIGH * 100:
-        color = ANSI_RED
+        return ANSI_RED
     elif pct >= THRESHOLD_MID * 100:
-        color = ANSI_YELLOW
-    else:
-        color = ANSI_GREEN
-    return f"{color}{value}{ANSI_RESET}"
+        return ANSI_YELLOW
+    return ANSI_GREEN
+
+
+def colorize_pct(pct):
+    """Return pct formatted as a string with ANSI color based on magnitude."""
+    return f"{_pct_color(pct)}{pct:.0f}%{ANSI_RESET}"
 
 
 def format_remaining(resets_at):
@@ -313,7 +316,16 @@ def main():
             label = format_remaining(entry.get("resets_at"))
             if label is None:
                 label = "5h" if bucket == "five_hour" else "1w"
-            parts.append(f"{label}: {colorize_pct(pct)}")
+            segment = f"{label}: {colorize_pct(pct)}"
+            if bucket == "five_hour" and pct >= 100:
+                extra = usage.get("extra_usage")
+                if extra and extra.get("is_enabled"):
+                    used = extra.get("used_credits", 0) / 100
+                    limit = extra.get("monthly_limit", 0) / 100
+                    extra_pct = (used / limit * 100) if limit else 0
+                    color = _pct_color(extra_pct)
+                    segment += f" {color}${used:.0f}/${limit:.0f}{ANSI_RESET}"
+            parts.append(segment)
 
         if stale:
             age_str = format_duration(age_seconds)
