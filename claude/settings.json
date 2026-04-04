@@ -399,6 +399,7 @@
       "Bash(gws gmail users history --help)",
       "Bash(gws gmail users labels --help)",
       "Bash(gws gmail users messages --help)",
+      "Bash(gws gmail users messages get *)",
       "Bash(gws gmail users messages list *)",
       "Bash(gws gmail users settings --help)",
       "Bash(gws gmail users stop --help)",
