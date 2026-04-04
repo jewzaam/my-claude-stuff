@@ -518,6 +518,7 @@
       "Bash(gws workflow --help)",
       "Bash(ls *)",
       "Bash(make check *)",
+      "Bash(make complexity *)",
       "Bash(make coverage *)",
       "Bash(make format *)",
       "Bash(make format-check *)",
