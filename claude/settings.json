@@ -518,6 +518,7 @@
       "Bash(gws tasks tasks patch --help)",
       "Bash(gws tasks tasks update --help)",
       "Bash(gws workflow --help)",
+      "Bash(local-transcribe record *)",
       "Bash(ls *)",
       "Bash(make check *)",
       "Bash(make complexity *)",
