@@ -340,15 +340,16 @@ class TestCheckCommand:
         assert block_commands.check_command(command) == expected
 
     @pytest.mark.parametrize(
-        "command",
+        "command,expected",
         [
-            "find . -name '*.py'",
-            "find /tmp -type f",
-            "find . -name '*.log' -print",
+            ("find . -name '*.py'", "find (use the built-in Glob tool)"),
+            ("find /tmp -type f", "find (use the built-in Glob tool)"),
+            ("find . -name '*.log' -print", "find (use the built-in Glob tool)"),
         ],
     )
-    def test_find_without_delete_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
+    def test_find_without_delete_blocked(self, command: str, expected: str) -> None:
+        """All find usage is now blocked — use the built-in Glob tool."""
+        assert block_commands.check_command(command) == expected
 
     # --- chmod 777 ---
 
@@ -832,6 +833,51 @@ class TestCheckCommand:
     def test_network_tools_blocked(self, command: str, expected: str) -> None:
         assert block_commands.check_command(command) == expected
 
+    # --- Dedicated tools: grep/rg blocked (use built-in Grep tool) ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("grep foo bar.txt", "grep (use the built-in Grep tool)"),
+            ("grep -r pattern .", "grep (use the built-in Grep tool)"),
+            ("grep -rn 'some pattern' src/", "grep (use the built-in Grep tool)"),
+            ("/usr/bin/grep foo", "grep (use the built-in Grep tool)"),
+            ("grep.exe foo bar", "grep (use the built-in Grep tool)"),
+            ("env grep foo", "grep (use the built-in Grep tool)"),
+            ("rg pattern", "rg (use the built-in Grep tool)"),
+            ("rg -t py pattern src/", "rg (use the built-in Grep tool)"),
+            ("/usr/bin/rg foo", "rg (use the built-in Grep tool)"),
+            ("rg.exe foo", "rg (use the built-in Grep tool)"),
+        ],
+    )
+    def test_grep_rg_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "echo grepping",
+            "cat grep_results.txt",
+        ],
+    )
+    def test_grep_rg_false_positives_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- Dedicated tools: find blocked (use built-in Glob tool) ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("find . -name '*.py'", "find (use the built-in Glob tool)"),
+            ("find src/ -type f", "find (use the built-in Glob tool)"),
+            ("/usr/bin/find . -name foo", "find (use the built-in Glob tool)"),
+            ("find.exe . -name bar", "find (use the built-in Glob tool)"),
+            ("env find . -type d", "find (use the built-in Glob tool)"),
+        ],
+    )
+    def test_find_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
     # --- Make targets: block direct python -m for tools with make equivalents ---
 
     @pytest.mark.parametrize(
@@ -1000,7 +1046,6 @@ class TestPresplitPatterns:
             "curl https://example.com | jq .",
             "curl https://example.com",
             "wget -O file.tar.gz https://example.com",
-            "curl url | grep pattern",
             "curl url | tee output.txt",
             "curl url | cat",
         ],
