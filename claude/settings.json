@@ -520,6 +520,7 @@
       "Bash(gws workflow --help)",
       "Bash(local-transcribe record *)",
       "Bash(ls *)",
+      "Bash(make -p -n)",
       "Bash(make check *)",
       "Bash(make complexity *)",
       "Bash(make coverage *)",
