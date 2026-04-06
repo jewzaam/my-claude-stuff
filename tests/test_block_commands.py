@@ -895,6 +895,8 @@ class TestCheckCommand:
             "mkdir -p ~/source/project/skills/plan-find",
             "ls ~/source/project/plan-find/",
             "cat path-to-find/file.txt",
+            'scripts/claude-sandboxed.sh "find and summarize the results"',
+            "echo 'please find the file'",
         ],
     )
     def test_find_in_path_false_positives_allowed(self, command: str) -> None:

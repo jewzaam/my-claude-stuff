@@ -99,6 +99,12 @@
 - **Use Makefile targets** when available — the Makefile is the project's CLI interface
 - Use the **exact same command string AND description** for repeated operations — don't vary description text, tail counts, or flags between runs
 
+## Screenshots
+- **Windows**: `~/Pictures/Screenshots/`
+- **Linux**: (TBD)
+- **By path**: read the file directly with the Read tool
+- **"Last screenshot"** (or "latest", "most recent", etc.): use Glob to list `~/Pictures/Screenshots/*.png` sorted by modification time, then Read the first result
+
 ## User Context
 - Linux with Wayland at work, Windows at home
 - Uses gwt wrapper for git worktree operations and PR review workflows
