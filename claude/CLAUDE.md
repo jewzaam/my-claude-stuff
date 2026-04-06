@@ -98,6 +98,7 @@
 - Don't use unnecessary `cd` when the working directory is already correct
 - **Use Makefile targets** when available — the Makefile is the project's CLI interface
 - Use the **exact same command string AND description** for repeated operations — don't vary description text, tail counts, or flags between runs
+- **Use `**` for directory Read permissions** — single `*` only matches one level. Always use `Read(~/path/**)` for recursive access in `settings.json`
 
 ## Screenshots
 - **Windows**: `~/Pictures/Screenshots/`
