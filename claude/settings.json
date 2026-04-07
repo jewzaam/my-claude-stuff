@@ -544,6 +544,7 @@
       "Edit(~/source/standards/**)",
       "Read(/tmp/cited-research/*)",
       "Read(~/.claude/personal-assistant-config.json)",
+      "Read(~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/**)",
       "Read(~/.claude/skills/cited-research/references/**)",
       "Read(~/.claude/skills/engineering-estimate/references/**)",
       "Read(~/.claude/skills/summarize-transcript/references/**)",
