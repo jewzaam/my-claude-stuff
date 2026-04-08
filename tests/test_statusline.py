@@ -42,6 +42,21 @@ def isolate_paths(tmp_path, monkeypatch):
     return tmp_path, cache_file, creds_file
 
 
+# --- _configure_logging ---
+
+
+class TestConfigureLogging:
+    def test_oserror_handled_silently(self, monkeypatch):
+        # Reset the flag so _configure_logging runs again
+        monkeypatch.setattr(statusline, "_log_configured", False)
+        monkeypatch.setattr(
+            statusline.USAGE_CACHE_DIR.__class__,
+            "mkdir",
+            lambda *a, **kw: (_ for _ in ()).throw(OSError("no perms")),
+        )
+        statusline._configure_logging()  # should not raise
+
+
 # --- format_duration ---
 
 
@@ -179,6 +194,42 @@ class TestFetchUsage:
             lambda req, timeout=None: (_ for _ in ()).throw(
                 statusline.urllib.error.URLError("fail")
             ),
+        )
+        assert statusline.fetch_usage() is None
+
+    def test_http_error_with_body(self, monkeypatch):
+        monkeypatch.setattr(statusline, "get_oauth_token", lambda: "tok")
+
+        err = statusline.urllib.error.HTTPError(
+            url="http://example.com",
+            code=429,
+            msg="Too Many Requests",
+            hdrs=None,
+            fp=io.BytesIO(b"rate limited"),
+        )
+        monkeypatch.setattr(
+            statusline.urllib.request,
+            "urlopen",
+            lambda req, timeout=None: (_ for _ in ()).throw(err),
+        )
+        assert statusline.fetch_usage() is None
+
+    def test_http_error_unreadable_body(self, monkeypatch):
+        monkeypatch.setattr(statusline, "get_oauth_token", lambda: "tok")
+
+        err = statusline.urllib.error.HTTPError(
+            url="http://example.com",
+            code=500,
+            msg="Internal Server Error",
+            hdrs=None,
+            fp=None,
+        )
+        # Make read() raise
+        err.read = lambda: (_ for _ in ()).throw(OSError("unreadable"))
+        monkeypatch.setattr(
+            statusline.urllib.request,
+            "urlopen",
+            lambda req, timeout=None: (_ for _ in ()).throw(err),
         )
         assert statusline.fetch_usage() is None
 
@@ -485,6 +536,16 @@ class TestGetUsage:
         assert written["response_data"] == SAMPLE_USAGE_RESPONSE
         assert written["consecutive_failures"] == 0
 
+    def test_write_cache_oserror_handled(self, isolate_paths, monkeypatch):
+        """_write_cache OSError is silently ignored."""
+        monkeypatch.setattr(
+            statusline.USAGE_CACHE_FILE.parent.__class__,
+            "mkdir",
+            lambda *a, **kw: (_ for _ in ()).throw(OSError("perm denied")),
+        )
+        # Should not raise
+        statusline._write_cache({"response_data": {}, "last_success_at": 0})
+
     def test_corrupt_cache_ignored(self, isolate_paths, monkeypatch):
         _, cache_file, _ = isolate_paths
         cache_file.write_text("{corrupt", encoding="utf-8")
@@ -775,3 +836,38 @@ class TestMain:
         # five_hour is None so should be skipped
         # seven_day has no resets_at so falls back to "1w"
         assert "1w: 3%" in output
+
+    def test_null_utilization_skipped(self, monkeypatch, capsys):
+        usage = {
+            "five_hour": {"utilization": None, "resets_at": None},
+            "seven_day": {"utilization": 5.0},
+        }
+        output = self._run_main(
+            monkeypatch,
+            capsys,
+            SAMPLE_STDIN,
+            usage=usage,
+        )
+        # five_hour utilization is None → skipped
+        assert "1w: 5%" in output
+
+    def test_extra_usage_zero_limit(self, monkeypatch, capsys):
+        usage = {
+            "five_hour": {"utilization": 100.0},
+            "seven_day": {"utilization": 10.0},
+            "extra_usage": {
+                "is_enabled": True,
+                "monthly_limit": 0,
+                "used_credits": 0,
+                "utilization": 0,
+            },
+        }
+        output = self._run_main(
+            monkeypatch,
+            capsys,
+            SAMPLE_STDIN,
+            usage=usage,
+        )
+        assert "100%" in output
+        # zero limit → extra_pct = 0, still shown as $0/$0
+        assert "$0/$0" in output

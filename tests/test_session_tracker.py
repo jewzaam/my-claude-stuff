@@ -78,6 +78,28 @@ class TestTrackSession:
         track_session(data, base_dir=tmp_path)
         assert not list(tmp_path.iterdir())
 
+    def test_mkdir_oserror_handled_silently(self, tmp_path):
+        data = _make_session_data()
+        # Use a file as base_dir so mkdir fails
+        blocker = tmp_path / "blocker"
+        blocker.write_text("not a dir")
+        track_session(data, base_dir=blocker / "sub")
+        # No crash — OSError caught silently
+
+    def test_corrupt_existing_file_defaults_prior_cost(self, tmp_path):
+        from datetime import date as date_mod
+
+        today_dir = tmp_path / date_mod.today().isoformat()
+        today_dir.mkdir(parents=True)
+        session_file = today_dir / "abc-123.json"
+        session_file.write_text("not valid json{{{")
+
+        data = _make_session_data()
+        track_session(data, base_dir=tmp_path)
+
+        saved = json.loads(session_file.read_text())
+        assert saved["_prior_cost"] == 0.0
+
     def test_preserves_full_blob(self, tmp_path):
         data = _make_session_data()
         data["extra_field"] = "preserved"
@@ -484,3 +506,49 @@ class TestGetProjectCost:
         )
 
         assert get_project_cost("/proj/a", base_dir=tmp_path) == pytest.approx(3.00)
+
+    def test_returns_zero_for_missing_base_dir(self, tmp_path):
+        assert get_project_cost("/proj/a", base_dir=tmp_path / "nonexistent") == 0.0
+
+    def test_skips_malformed_json(self, tmp_path):
+        d = tmp_path / "2026-03-18"
+        d.mkdir()
+        (d / "good.json").write_text(
+            json.dumps(
+                _make_session_data(
+                    session_id="good", cost_usd=2.00, project_dir="/proj/a"
+                )
+            )
+        )
+        (d / "bad.json").write_text("not json{{{")
+
+        assert get_project_cost("/proj/a", base_dir=tmp_path) == pytest.approx(2.00)
+
+    def test_skips_non_json_files(self, tmp_path):
+        d = tmp_path / "2026-03-18"
+        d.mkdir()
+        (d / "s1.json").write_text(
+            json.dumps(
+                _make_session_data(
+                    session_id="s1", cost_usd=3.00, project_dir="/proj/a"
+                )
+            )
+        )
+        (d / "notes.txt").write_text("not a session")
+
+        assert get_project_cost("/proj/a", base_dir=tmp_path) == pytest.approx(3.00)
+
+    def test_skips_non_dir_entries_in_base(self, tmp_path):
+        d = tmp_path / "2026-03-18"
+        d.mkdir()
+        (d / "s1.json").write_text(
+            json.dumps(
+                _make_session_data(
+                    session_id="s1", cost_usd=4.00, project_dir="/proj/a"
+                )
+            )
+        )
+        # File directly in base_dir (not a date directory)
+        (tmp_path / "stray-file.txt").write_text("not a dir")
+
+        assert get_project_cost("/proj/a", base_dir=tmp_path) == pytest.approx(4.00)

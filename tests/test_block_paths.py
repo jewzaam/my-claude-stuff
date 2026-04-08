@@ -266,6 +266,17 @@ class TestCommandChaining:
         monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
         block_paths.main()  # should not raise
 
+    def test_backslash_escape_in_double_quotes_no_false_positive(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data = {
+            "tool_name": "Bash",
+            "tool_input": {"command": 'echo "foo\\;bar"'},
+            "cwd": "/tmp",
+        }
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        block_paths.main()  # should not raise — escaped semicolon
+
     def test_no_semicolon_allowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = {
             "tool_name": "Bash",
@@ -445,6 +456,13 @@ class TestIntegration:
         with pytest.raises(SystemExit) as exc_info:
             block_paths.main()
         assert exc_info.value.code == 2
+
+    def test_non_dict_tool_input_returns_early(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data = {"tool_name": "Bash", "tool_input": "not a dict", "cwd": "/tmp"}
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        block_paths.main()  # should not raise
 
     def test_ssh_backup_not_blocked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = {

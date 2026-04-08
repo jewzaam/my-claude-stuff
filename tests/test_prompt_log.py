@@ -536,3 +536,21 @@ class TestMain:
             mock.patch("prompt_log._write_entry", side_effect=OSError("disk full")),
         ):
             prompt_log.main()
+
+
+class TestDumpDebug:
+    def test_writes_debug_file(self, tmp_path):
+        mock_dir = str(tmp_path / "prompt-log")
+        data = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+        with mock.patch("prompt_log.PROMPT_LOG_DIR", mock_dir):
+            prompt_log._dump_debug(data)
+
+        debug_file = tmp_path / "prompt-log" / "debug" / "UserPromptSubmit.json"
+        assert debug_file.exists()
+        saved = json.loads(debug_file.read_text())
+        assert saved["hook_event_name"] == "UserPromptSubmit"
+
+    def test_oserror_handled_silently(self):
+        data = {"hook_event_name": "Stop"}
+        with mock.patch("prompt_log.os.makedirs", side_effect=OSError("perm")):
+            prompt_log._dump_debug(data)  # should not raise
