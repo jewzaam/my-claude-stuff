@@ -2011,3 +2011,19 @@ class TestMain:
             block_commands.main()
         captured = capsys.readouterr()
         assert "BLOCKED: sudo is not allowed" in captured.err
+
+    def test_non_dict_tool_input_uses_flat_command(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data = {"tool_input": "not a dict", "command": "git push origin main"}
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        with pytest.raises(SystemExit) as exc_info:
+            block_commands.main()
+        assert exc_info.value.code == 2
+
+    def test_non_dict_tool_input_no_command(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data = {"tool_input": "not a dict"}
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        block_commands.main()  # should not raise
