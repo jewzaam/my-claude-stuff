@@ -869,6 +869,14 @@ class TestCheckCommand:
         [
             "echo grepping",
             "cat grep_results.txt",
+            "ls -lh fetch/org.json",
+            "wc -c fetch/org.json",
+            "stat fetch/org.json",
+            "du -h fetch/org.json",
+            "python3 -c 'from pathlib import Path; p=Path(\"fetch/org.json\")'",
+            "cat target/output.txt",
+            "ls merge-results/",
+            "wc -l large_file.txt",
         ],
     )
     def test_grep_rg_false_positives_allowed(self, command: str) -> None:
@@ -1955,6 +1963,68 @@ class TestGhSearchAllowed:
         ],
     )
     def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestSubstringFalsePositives:
+    """Commands containing blocked command names as substrings must not be blocked.
+
+    Regression tests for the _PATH word-boundary fix: when _PATH doesn't match
+    a path prefix, it asserts \\b so command names can't match mid-word.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # "rg" inside org, target, merge, large, energy
+            "ls -lh fetch/org.json",
+            "wc -c fetch/org.json",
+            "cat target/output.txt",
+            "ls merge-results/",
+            "wc -l large_file.txt",
+            "echo energy savings",
+            # "git" inside digit, legit
+            "echo digit 42",
+            "echo legit push",
+            # "grep" inside agrep, pcregrep
+            "echo agrep is a tool",
+            # "ssh" inside openssh
+            "cat /etc/openssh/sshd_config",
+            "ls openssh-client/",
+            # "make" inside cmake, remake
+            "cmake --build .",
+            "ls cmake-build-debug/",
+            # "scp" inside mscp, lscp
+            "echo manuscript page 3",
+            # "sc" inside describe, misc, escape, script
+            "echo describe delete",
+            "echo misc delete flag",
+            # "sudo" inside pseudocode
+            "echo pseudocode example",
+            # "su" inside result, issue, resume
+            "echo result output",
+            # "gh" inside sigh, high, weigh
+            "echo sigh api response",
+            "echo high issue count",
+            # "reg" inside regex, register, region
+            "echo regex delete pattern",
+            # "shred" inside unshred
+            "echo unshred file.dat",
+            # "truncate" inside ftruncate
+            "echo ftruncate call",
+            # "chmod" inside fchmod
+            "echo fchmod 777 call",
+            # "rsync" inside lrsync
+            "echo lrsync run",
+            # "format" inside reformat
+            "echo reformat C: drive",
+            # "del" inside model, delete
+            "echo model /s flag",
+            # "rd" inside word, bird
+            "echo word /s end",
+        ],
+    )
+    def test_substring_not_blocked(self, command: str) -> None:
         assert block_commands.check_command(command) is None
 
 
