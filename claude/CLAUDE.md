@@ -110,7 +110,7 @@
 - Linux with Wayland at work, Windows at home
 - Uses gwt wrapper for git worktree operations and PR review workflows
 - **License**: always Apache 2.0 for new projects and files, never MIT
-- **gws-cli usage notes**: `~/source/gws-cli-notes/NOTES.md`
+- **gws-cli usage notes**: `~/source/gws-cli-notes/CLAUDE.md`
 
 ## Model Usage
 - Sonnet for implementation work, Opus for planning and review
