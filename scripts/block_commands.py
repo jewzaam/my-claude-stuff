@@ -53,7 +53,9 @@ import sys
 
 # Optional path prefix (Unix and Windows after normalization):
 # /usr/bin/, C:/Windows/System32/, ./bin/, etc.
-_PATH = r"(?:[a-zA-Z0-9_.:/-]*/)?"
+# When no path prefix is present, assert a word boundary so the command
+# name cannot match as a substring inside another word (e.g. "org" → "rg").
+_PATH = r"(?:[a-zA-Z0-9_.:/-]*/|\b)"
 # Optional .exe suffix for Windows executables
 _EXE = r"(?:\.exe)?"
 _ENV = r"(?:\benv\s+(?:-\S+\s+)*)?"
