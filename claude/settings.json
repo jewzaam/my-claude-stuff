@@ -534,6 +534,7 @@
       "Bash(make lint *)",
       "Bash(make markdown-lint links)",
       "Bash(make markdown-lint)",
+      "Bash(make reachability)",
       "Bash(make test *)",
       "Bash(make test-unit *)",
       "Bash(make typecheck *)",
