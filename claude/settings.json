@@ -544,6 +544,7 @@
       "Bash(mkdir -p /tmp/cited-research)",
       "Bash(pwd)",
       "Bash(python -m py_compile *)",
+      "Bash(trim *)",
       "Bash(wc *)",
       "Edit(~/source/standards/**)",
       "Read(/tmp/cited-research/*)",
