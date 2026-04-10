@@ -1537,8 +1537,6 @@ class TestGhIssueMutationsBlocked:
     @pytest.mark.parametrize(
         "command,expected",
         [
-            ("gh issue create", "gh issue (mutation)"),
-            ("gh issue create --title test", "gh issue (mutation)"),
             ("gh issue close 123", "gh issue (mutation)"),
             ("gh issue reopen 123", "gh issue (mutation)"),
             ("gh issue delete 123", "gh issue (mutation)"),
@@ -1562,6 +1560,8 @@ class TestGhIssueReadAllowed:
     @pytest.mark.parametrize(
         "command",
         [
+            "gh issue create",
+            "gh issue create --title test",
             "gh issue list",
             "gh issue list --state open",
             "gh issue view 123",
@@ -1940,7 +1940,7 @@ class TestGhPathVariants:
     @pytest.mark.parametrize(
         "command,expected",
         [
-            ("/usr/bin/gh issue create", "gh issue (mutation)"),
+            ("/usr/bin/gh issue close 123", "gh issue (mutation)"),
             ("gh.exe pr merge 123", "gh pr (mutation)"),
             ("env gh repo delete owner/repo", "gh repo (mutation)"),
             ("env -i /usr/local/bin/gh api -X POST /repos/foo", "gh api (mutation)"),

@@ -436,7 +436,7 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(
             rf"{_ENV}{_PATH}gh{_EXE}\s+issue\s+"
-            r"(?:create|close|reopen|delete|edit|comment|transfer"
+            r"(?:close|reopen|delete|edit|comment|transfer"
             r"|pin|unpin|lock|unlock|develop)\b"
         ),
         "gh issue (mutation)",
