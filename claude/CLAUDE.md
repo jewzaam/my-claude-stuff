@@ -104,9 +104,10 @@
 
 ## Screenshots
 - **Windows**: `~/Pictures/Screenshots/`
-- **Linux**: (TBD)
+- **Linux**: `~/Pictures/Screenshots/`
+- **Start by listing files** — always run `ls -lt ~/Pictures/Screenshots/` first to see available files sorted newest-first. Glob does not reliably sort by date and leads to reading the wrong file
 - **By path**: read the file directly with the Read tool
-- **"Last screenshot"** (or "latest", "most recent", etc.): use Glob to list `~/Pictures/Screenshots/*.png` sorted by modification time, then Read the first result
+- **"Last screenshot"** (or "latest", "most recent", etc.): pick the first file from the `ls -lt` listing above and Read it
 
 ## User Context
 - Linux with Wayland at work, Windows at home
