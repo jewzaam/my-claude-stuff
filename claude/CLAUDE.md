@@ -8,13 +8,14 @@
 - **No commits to default branches** unless explicitly instructed
 - **Work on fork/feature branches** or current branch if specified
 - **Never use destructive data operations** (wipe DB, drop tables, destructive migrations) without explicit user approval
+- **Worktree isolation** — when a session is running inside a git worktree, stay within that worktree. Do not read from or operate on the main/parent working directory unless the user explicitly requests it
 
 ## Communication
 - Direct, concise, professional — no praise, apologies, sugarcoating, or exclamations
 - Accuracy over positivity — call out problems, vulnerabilities, and flaws directly
 - Challenge assumptions and flag when claims lack evidence
 - Do not repeat yourself
-- **Use the AskUserQuestion tool** to ask questions — never ask questions in plain chat output. The user has hook tooling and a dashboard that surfaces AskUserQuestion calls as visible questions; plain-text questions in chat appear as the session going idle and will be missed
+- **ALL questions go through AskUserQuestion** — never ask questions in plain chat output. The user has hooks that alert on AskUserQuestion calls; plain-text questions look like an idle session and will be missed. This applies everywhere: clarifications, brainstorming, skill prompts, confirmations — if it needs a user response, use the AskUserQuestion tool
 - **Gender neutral language** — default to they/them pronouns. Do not assume gender based on names
 - **Redact strong language** — when quoting the user in memory files or persisted artifacts, redact swear words and their acronyms. Rephrase or replace with `***`
 
@@ -42,6 +43,7 @@
 - **"Tell me"** means report findings and STOP — do not act on findings unless explicitly asked
 - **Follow skill instructions exactly** — when a skill defines how to handle an edge case, use that instruction; don't override with independent approaches
 - **Never ask about execution strategy** — when skills offer a choice between subagent-driven vs inline execution (or similar), pick whichever is faster and proceed. Do not ask the user
+- **Batch clarification questions** — when brainstorming or any skill needs to ask clarifying questions, ask them all at once in a single AskUserQuestion call. Never ask one question at a time
 - **Approved plans run to completion** — once the user approves a plan or batch of work, execute all of it continuously. Do not pause between tasks for go/no-go confirmation. Only stop if there is a critical blocking issue that requires user input to resolve
 - **Never auto-invoke /commit** — the /commit skill runs only when the user types `/commit` as their chat input. Not after fixes pass, not after checks succeed, not after any other skill completes. Committing is an explicit, deliberate decision
 
