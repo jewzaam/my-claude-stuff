@@ -869,6 +869,10 @@ class TestCheckCommand:
         [
             "echo grepping",
             "cat grep_results.txt",
+            "git log --all --oneline --grep=foo",
+            "git log -i --grep=gitdir --grep=commondir",
+            "git log --grep=pattern",
+            "git log --basic-regexp --grep=foo",
             "ls -lh fetch/org.json",
             "wc -c fetch/org.json",
             "stat fetch/org.json",

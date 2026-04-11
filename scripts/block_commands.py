@@ -246,12 +246,13 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bStop-Service\b", re.IGNORECASE), "Stop-Service"),
     (re.compile(r"\bStop-Process\b", re.IGNORECASE), "Stop-Process"),
     # Dedicated tools: block Bash grep/rg/find — use built-in Grep/Glob tools
+    # Negative lookbehind `(?<!-)` excludes flag-style uses like `git log --grep=`
     (
-        re.compile(rf"{_ENV}{_PATH}grep{_EXE}\b"),
+        re.compile(rf"{_ENV}{_PATH}(?<!-)grep{_EXE}\b"),
         "grep (use the built-in Grep tool)",
     ),
     (
-        re.compile(rf"{_ENV}{_PATH}rg{_EXE}\b"),
+        re.compile(rf"{_ENV}{_PATH}(?<!-)rg{_EXE}\b"),
         "rg (use the built-in Grep tool)",
     ),
     (
