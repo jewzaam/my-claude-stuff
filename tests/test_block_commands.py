@@ -1090,6 +1090,51 @@ class TestPresplitPatterns:
         assert block_commands.check_command(command) is None
 
 
+class TestCdToCwd:
+    """Block cd <path> && <cmd> only when path resolves to cwd."""
+
+    _MSG = (
+        "cd to current directory "
+        "(run pwd to check cwd; use absolute paths instead of cd)"
+    )
+
+    @pytest.mark.parametrize(
+        "command,cwd",
+        [
+            # Absolute path matches cwd
+            ("cd /home/user/project && git diff", "/home/user/project"),
+            # Dot resolves to cwd
+            ("cd . && make test", "/tmp/repo"),
+            # Trailing slash on cd target
+            ("cd /tmp/repo/ && git log", "/tmp/repo"),
+            # Leading whitespace
+            ("  cd /tmp/repo && ls", "/tmp/repo"),
+        ],
+    )
+    def test_cd_to_cwd_blocked(self, command: str, cwd: str) -> None:
+        assert block_commands.check_cd_to_cwd(command, cwd) == self._MSG
+
+    @pytest.mark.parametrize(
+        "command,cwd",
+        [
+            # Different directory — allowed
+            ("cd /other/dir && git diff", "/home/user/project"),
+            # Subdirectory — allowed
+            ("cd ./subdir && make test", "/tmp/repo"),
+            # Parent — allowed
+            ("cd .. && ls", "/tmp/repo/sub"),
+            # Standalone cd, no chaining — allowed
+            ("cd /home/user/project", "/home/user/project"),
+            # cd inside quoted string — allowed (not a real cd)
+            ("echo 'cd /tmp && ls'", "/tmp"),
+            # No cd at all
+            ("git diff --staged", "/tmp"),
+        ],
+    )
+    def test_cd_to_different_dir_allowed(self, command: str, cwd: str) -> None:
+        assert block_commands.check_cd_to_cwd(command, cwd) is None
+
+
 class TestGwsGmailBlocked:
     """Gmail mutations must be blocked — primary email egress risk."""
 
