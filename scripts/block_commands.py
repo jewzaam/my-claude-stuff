@@ -30,6 +30,7 @@ Blocked categories:
   Publishing: npm publish, twine upload, gem push, cargo publish,
               dotnet nuget push
   Network: nc/netcat/ncat, scp, rsync, ftp/sftp, telnet, ssh, socat
+  Workflow: cd to cwd — cd <path> && <cmd> where path == cwd (context-aware)
   Cross-platform: curl/wget piped to shell/interpreter (presplit)
               sh, bash, dash, ksh, csh, tcsh, zsh, fish,
               python, python3, pythonw, perl, ruby, node
@@ -48,8 +49,11 @@ Blocked categories:
 """
 
 import json
+import os
 import re
+import shlex
 import sys
+from pathlib import Path
 
 # Optional path prefix (Unix and Windows after normalization):
 # /usr/bin/, C:/Windows/System32/, ./bin/, etc.
@@ -644,6 +648,45 @@ def check_command(command: str) -> str | None:
     return None
 
 
+def check_cd_to_cwd(command: str, cwd: str) -> str | None:
+    """Block ``cd <path> && <cmd>`` when <path> resolves to cwd.
+
+    Only blocks redundant cd — when the target directory is already the
+    caller's working directory.  cd to a *different* directory is not blocked.
+    """
+    check_text = command.split("<<")[0] if "<<" in command else command
+    check_text = check_text.replace("\\", "/")
+
+    m = re.match(r"^\s*cd\s+(.*?)\s*&&", check_text)
+    if not m:
+        return None
+
+    raw_path = m.group(1).strip()
+    if not raw_path:
+        return None
+
+    try:
+        tokens = shlex.split(raw_path)
+    except ValueError:
+        tokens = raw_path.split()
+    if not tokens:
+        return None
+
+    cd_target = tokens[0]
+    p = Path(os.path.expandvars(cd_target)).expanduser()
+    if not p.is_absolute():
+        p = Path(cwd) / p
+    resolved = p.resolve().as_posix()
+    cwd_resolved = Path(cwd).resolve().as_posix()
+
+    if resolved == cwd_resolved:
+        return (
+            "cd to current directory "
+            "(run pwd to check cwd; use absolute paths instead of cd)"
+        )
+    return None
+
+
 def main() -> None:
     """Read tool input from stdin and block restricted commands."""
     try:
@@ -659,6 +702,13 @@ def main() -> None:
         command = data.get("command", "")
     if not command:
         return
+
+    cwd = data.get("cwd", ".")
+
+    cd_blocked = check_cd_to_cwd(command, cwd)
+    if cd_blocked:
+        print(f"BLOCKED: {cd_blocked}", file=sys.stderr)
+        sys.exit(2)
 
     blocked = check_command(command)
     if blocked:
