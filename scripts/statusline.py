@@ -25,9 +25,7 @@ import json
 import logging
 import logging.handlers
 import sys
-import time
 import urllib.request
-import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,11 +47,8 @@ from scripts.config import (  # noqa: E402
     THRESHOLD_MID,
 )
 
-USAGE_CACHE_TTL_SECONDS = 120
-USAGE_CACHE_DIR = DATA_DIR / "statusline-cache"
-USAGE_CACHE_FILE = USAGE_CACHE_DIR / "oauth_usage.json"
-LOG_FILE = USAGE_CACHE_DIR / "statusline.log"
-CREDENTIALS_FILE = Path.home() / ".claude" / ".credentials.json"
+LOG_DIR = DATA_DIR / "statusline-cache"
+LOG_FILE = LOG_DIR / "statusline.log"
 
 logger = logging.getLogger("statusline")
 _log_configured = False
@@ -65,7 +60,7 @@ def _configure_logging():
         return
     _log_configured = True
     try:
-        USAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(
             str(LOG_FILE),
             maxBytes=256 * 1024,
@@ -77,10 +72,6 @@ def _configure_logging():
         logger.setLevel(logging.DEBUG)
     except OSError:
         pass
-
-
-# source: reddit.com/r/ClaudeAI/comments/1rqnryw
-USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
 
 
 def format_duration(seconds):
@@ -155,137 +146,55 @@ def format_remaining(resets_at):
         return None
 
 
-def get_oauth_token():
-    try:
-        data = json.loads(CREDENTIALS_FILE.read_text(encoding="utf-8"))
-        return data["claudeAiOauth"]["accessToken"]
-    except (OSError, KeyError, json.JSONDecodeError) as e:
-        logger.error("Failed to read OAuth token: %s", e)
-        return None
-
-
-def fetch_usage():
-    token = get_oauth_token()
-    if not token:
-        logger.warning("No OAuth token available, skipping fetch")
-        return None
-
-    req = urllib.request.Request(USAGE_API_URL)
-    req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("anthropic-beta", "oauth-2025-04-20")
-
-    try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
-            logger.debug("Fetch succeeded")
-            return data
-    except urllib.error.HTTPError as e:
-        body = ""
-        try:
-            body = e.read().decode()[:200]
-        except Exception:
-            pass
-        logger.error("HTTP %d %s: %s", e.code, e.reason, body)
-        return None
-    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
-        logger.error("Fetch failed: %s: %s", type(e).__name__, e)
-        return None
-
-
-def _read_cache():
-    """Read and migrate cache file. Returns dict or None."""
-    if not USAGE_CACHE_FILE.exists():
-        return None
-    try:
-        cached = json.loads(USAGE_CACHE_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return None
-    # Migrate old single-letter keys to new schema
-    if "v" in cached and "response_data" not in cached:
-        cached = {
-            "response_data": cached["v"],
-            "last_success_at": cached.get("t", 0),
-            "last_attempt_at": cached.get("t", 0),
-            "consecutive_failures": 0,
-        }
-    return cached
-
-
-def _write_cache(cache_dict):
-    """Write cache dict to disk."""
-    try:
-        USAGE_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        USAGE_CACHE_FILE.write_text(json.dumps(cache_dict), encoding="utf-8")
-    except OSError:
-        pass
-
-
-MAX_COOLDOWN_SECONDS = 3600
-# If no attempt in this window, assume stale failure (sleep/resume) and retry
-STALE_FAILURE_SECONDS = 21600  # 6 hours
+_AGENTPULSE_CONFIG = Path.home() / ".claude" / "agentpulse" / "config.json"
 
 
 def get_usage():
-    """Return (usage_dict, age_seconds, stale) or (None, 0, False)."""
-    now = time.time()
-    cached = _read_cache()
+    """Fetch usage data from agentpulse GET /api/v1/limits.
 
-    if cached:
-        age = now - cached.get("last_success_at", 0)
-        if age < USAGE_CACHE_TTL_SECONDS:
-            return cached.get("response_data"), age, False
-
-        # Stale — check if we should skip fetch due to backoff cooldown
-        failures = cached.get("consecutive_failures", 0)
-        since_last_attempt = now - cached.get("last_attempt_at", 0)
-        # Long gap (sleep/resume) — reset backoff and retry immediately
-        if failures > 0 and since_last_attempt >= STALE_FAILURE_SECONDS:
-            logger.info(
-                "Stale failure: %.0fs since last attempt, resetting backoff",
-                since_last_attempt,
+    Returns (usage_dict, age_seconds, stale) or (None, 0, False).
+    Agentpulse owns OAuth, caching, and backoff — statusline is a pure
+    display client.  The response has buckets (five_hour, seven_day, etc.)
+    and metadata (age_seconds, stale) at the top level; we pass the whole
+    dict as usage_dict so main() can read buckets directly.
+    """
+    try:
+        if not _AGENTPULSE_CONFIG.exists():
+            return None, 0, False
+        cfg = json.loads(_AGENTPULSE_CONFIG.read_text(encoding="utf-8"))
+        host = cfg.get("host", "127.0.0.1")
+        port = cfg.get("port", 17385)
+        url = f"http://{host}:{port}/api/v1/limits"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            data = json.loads(resp.read())
+            return (
+                data,
+                data.get("age_seconds", 0),
+                data.get("stale", False),
             )
-            failures = 0
-        if failures > 0:
-            cooldown = min(
-                USAGE_CACHE_TTL_SECONDS * (2**failures), MAX_COOLDOWN_SECONDS
-            )
-            if since_last_attempt < cooldown:
-                logger.info(
-                    "Backoff: skipping fetch, %d consecutive failures, "
-                    "cooldown %.0fs, %.0fs remaining",
-                    failures,
-                    cooldown,
-                    cooldown - since_last_attempt,
-                )
-                return cached.get("response_data"), age, True
+    except Exception:
+        return None, 0, False
 
-    result = fetch_usage()
 
-    if result is not None:
-        _write_cache(
-            {
-                "response_data": result,
-                "last_success_at": now,
-                "last_attempt_at": now,
-                "consecutive_failures": 0,
-            }
+def _relay_to_agentpulse(data):
+    """POST statusline data to agentpulse. Silent on failure."""
+    try:
+        if not _AGENTPULSE_CONFIG.exists():
+            return
+        cfg = json.loads(_AGENTPULSE_CONFIG.read_text(encoding="utf-8"))
+        host = cfg.get("host", "127.0.0.1")
+        port = cfg.get("port", 17385)
+        url = f"http://{host}:{port}/statusline/claude"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(data).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
         )
-        return result, 0, False
-
-    # Fetch failed — update attempt tracking, preserve stale data
-    if cached:
-        cached["last_attempt_at"] = now
-        cached["consecutive_failures"] = cached.get("consecutive_failures", 0) + 1
-        _write_cache(cached)
-        age = now - cached.get("last_success_at", 0)
-        logger.warning(
-            "Fetch failed, consecutive_failures=%d, serving stale cache (%.0fs old)",
-            cached["consecutive_failures"],
-            age,
-        )
-        return cached.get("response_data"), age, True
-
-    return None, 0, False
+        urllib.request.urlopen(req, timeout=1)
+    except Exception:
+        pass
 
 
 def main():
@@ -295,6 +204,8 @@ def main():
     except (json.JSONDecodeError, EOFError):
         print("Claude Code")
         return
+
+    _relay_to_agentpulse(data)
 
     model = data.get("model", {}).get("display_name", "Claude")
     parts = []
@@ -320,8 +231,8 @@ def main():
             if bucket == "five_hour" and pct >= 100:
                 extra = usage.get("extra_usage")
                 if extra and extra.get("is_enabled"):
-                    used = extra.get("used_credits", 0) / 100
-                    limit = extra.get("monthly_limit", 0) / 100
+                    used = extra.get("used_credits_usd", 0)
+                    limit = extra.get("monthly_limit_usd", 0)
                     extra_pct = (used / limit * 100) if limit else 0
                     color = _pct_color(extra_pct)
                     segment += f" {color}${used:.0f}/${limit:.0f}{ANSI_RESET}"
