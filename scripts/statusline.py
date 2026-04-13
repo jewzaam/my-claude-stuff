@@ -162,6 +162,8 @@ def get_usage():
         if not _AGENTPULSE_CONFIG.exists():
             return None, 0, False
         cfg = json.loads(_AGENTPULSE_CONFIG.read_text(encoding="utf-8"))
+        if not cfg.get("fetch_limits", True):
+            return None, 0, False
         host = cfg.get("host", "127.0.0.1")
         port = cfg.get("port", 17385)
         url = f"http://{host}:{port}/api/v1/limits"

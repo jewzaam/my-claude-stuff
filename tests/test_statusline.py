@@ -297,6 +297,27 @@ class TestGetUsage:
         assert age == 0
         assert stale is False
 
+    def test_fetch_limits_disabled_skips_request(self, isolate_paths, monkeypatch):
+        """fetch_limits=false in config → skip HTTP call, return None."""
+        _, config_file = isolate_paths
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text(
+            json.dumps({"host": "127.0.0.1", "port": 17385, "fetch_limits": False}),
+            encoding="utf-8",
+        )
+        # urlopen should never be called; blow up if it is
+        monkeypatch.setattr(
+            statusline.urllib.request,
+            "urlopen",
+            lambda req, timeout=None: (_ for _ in ()).throw(
+                AssertionError("urlopen called despite fetch_limits=false")
+            ),
+        )
+        usage, age, stale = statusline.get_usage()
+        assert usage is None
+        assert age == 0
+        assert stale is False
+
     def test_uses_config_host_port(self, isolate_paths, monkeypatch):
         """Reads host/port from config file."""
         tmp_path, config_file = isolate_paths
