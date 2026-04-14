@@ -21,6 +21,7 @@ dev = [
     "black>=23.0",
     "flake8>=6.0",
     "mypy==1.11.2",
+    "types-psutil>=5.9",
 ]
 
 [tool.setuptools.packages.find]

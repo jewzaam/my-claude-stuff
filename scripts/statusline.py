@@ -24,6 +24,8 @@ Session ID appended for cross-session prompt log correlation.
 import json
 import logging
 import logging.handlers
+import os
+import platform
 import sys
 import urllib.request
 from datetime import datetime, timezone
@@ -187,6 +189,25 @@ def _relay_to_agentpulse(data):
         cfg = json.loads(_AGENTPULSE_CONFIG.read_text(encoding="utf-8"))
         host = cfg.get("host", "127.0.0.1")
         port = cfg.get("port", 17385)
+
+        # Inject source_system and pid so agentpulse can create the session
+        # on the first statusline tick, before any hooks fire.
+        data["source_system"] = platform.node()
+        try:
+            import psutil
+
+            claude_pid = 0
+            for proc in psutil.Process(os.getpid()).parents():
+                try:
+                    if "claude" in proc.name().lower():
+                        claude_pid = proc.pid
+                        break
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    break
+            data["pid"] = claude_pid or os.getppid()
+        except ImportError:
+            data["pid"] = os.getppid()
+
         url = f"http://{host}:{port}/statusline/claude"
         req = urllib.request.Request(
             url,
