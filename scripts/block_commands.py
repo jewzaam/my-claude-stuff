@@ -13,7 +13,8 @@ Preprocessing pipeline:
   5. Check each segment against BLOCKED_PATTERNS
 
 Blocked categories:
-  Git: -C flag (use plain git; exceptions: git-worktrees/ paths,
+  Git: -C flag (blocked for absolute/parent/home paths;
+       exceptions: relative subdirectory paths, git-worktrees/ paths,
        read-only subcommands: status/log/diff),
        add, push, reset, clean (except -n),
        branch (destructive flags only),
@@ -93,16 +94,19 @@ _GH_API_GRAPHQL_RE = re.compile(rf"{_ENV}{_PATH}gh{_EXE}\s+api\s+graphql\b")
 _GRAPHQL_MUTATION_RE = re.compile(r"\bmutation\b")
 
 BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    # git -C: unnecessary when already in the target directory; use plain git
-    # Exception: git -C <path>/git-worktrees/<worktree>/ is allowed for local PR review
+    # git -C: block absolute, parent (..), and home (~) paths.
+    # Relative subdirectory paths are allowed (e.g. git -C nexus-ui remote -v).
+    # Exception: git -C <path>/git-worktrees/<worktree>/ is always allowed
     # Exception: read-only subcommands (status, log, diff) are allowed with any path
     (
         re.compile(
             rf"{_ENV}{_PATH}git{_EXE}\s+-C\s+"
             r"(?!\S*git-worktrees/)"
             r"(?!\S+(?:\s+-\S+)*\s+(?:status|log|diff)\b)"
+            r"(?:\.\.|[/~])"
         ),
-        "git -C (you are already in the repo directory — use git without -C)",
+        "git -C (blocked for absolute/parent/home paths"
+        " — subdirectory and worktree paths are allowed)",
     ),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+add\b"), "git add"),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+push\b"), "git push"),

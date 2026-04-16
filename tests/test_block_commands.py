@@ -104,11 +104,30 @@ class TestCheckCommand:
             "git -C /some/path add .",
             "git -C /some/path push",
             "git -C /some/path fetch",
+            "git -C ../parent-repo push",
+            "git -C ../parent-repo branch",
+            "git -C ~/repos/other push",
+            "git -C ~/repos/other remote -v",
+            "git -C .. branch",
         ],
     )
     def test_git_dash_c_blocked(self, command: str) -> None:
         result = block_commands.check_command(command)
         assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git -C nexus-ui remote -v",
+            "git -C ./subdir remote -v",
+            "git -C subdir fetch",
+            "git -C subdir branch",
+            "git -C nexus-ui log --oneline",
+            "git -C .hidden-dir remote -v",
+        ],
+    )
+    def test_git_dash_c_relative_subdir_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
 
     @pytest.mark.parametrize(
         "command",
