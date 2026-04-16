@@ -4,7 +4,7 @@
 
 ## Restrictions
 - **Never execute**: `git push`, `sudo`, or `su`
-- **`git -C` is allowed for `git-worktrees/` paths** (e.g., `git -C git-worktrees/my-pr/ log`) **and read-only subcommands** (`status`, `log`, `diff`) with any path — all other `git -C` usage is blocked
+- **`git -C` is allowed for relative subdirectory paths** (e.g., `git -C nexus-ui remote -v`), **`git-worktrees/` paths** (e.g., `git -C git-worktrees/my-pr/ log`), **and read-only subcommands** (`status`, `log`, `diff`) with any path — blocked for absolute (`/`), parent (`..`), and home (`~`) paths
 - **No commits to default branches** unless explicitly instructed
 - **Work on fork/feature branches** or current branch if specified
 - **Never use destructive data operations** (wipe DB, drop tables, destructive migrations) without explicit user approval
