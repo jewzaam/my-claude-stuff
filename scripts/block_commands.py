@@ -37,6 +37,7 @@ Blocked categories:
               python, python3, pythonw, perl, ruby, node
   Dedicated tools: grep, rg (use built-in Grep tool), find (use built-in Glob tool)
   Make targets: python -m pytest/mypy/black/flake8/mutmut (use make targets)
+  JSON validation: python -m json.tool (use jq empty / jq .)
   GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
            Keep, Forms, Docs, Slides (writes), Classroom, Workflow (all),
            Meet (mutations), Events (subscriptions)
@@ -287,6 +288,12 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+mutmut\b"),
         "python -m mutmut (use make mutation-test)",
+    ),
+    # JSON validation: block python's json.tool — use jq instead
+    (
+        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+json\.tool\b"),
+        "python -m json.tool "
+        "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
     ),
     # GWS CLI mutation blocking (defense-in-depth alongside OAuth scope control)
     # Gmail: NEVER allow mutations — primary email egress risk
