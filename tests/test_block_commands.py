@@ -1039,6 +1039,78 @@ class TestCheckCommand:
     def test_json_tool_alternatives_allowed(self, command: str) -> None:
         assert block_commands.check_command(command) is None
 
+    # --- Semgrep: block autofix mutation and state/network subcommands ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            (
+                "semgrep scan --config p/default --autofix src/",
+                "semgrep autofix (mutates files — drop --autofix/-a/--replacement)",
+            ),
+            (
+                "semgrep scan -a --config p/default src/",
+                "semgrep autofix (mutates files — drop --autofix/-a/--replacement)",
+            ),
+            (
+                "semgrep scan --replacement 'foo' --config rules/ src/",
+                "semgrep autofix (mutates files — drop --autofix/-a/--replacement)",
+            ),
+            (
+                "/usr/bin/semgrep scan --autofix src/",
+                "semgrep autofix (mutates files — drop --autofix/-a/--replacement)",
+            ),
+        ],
+    )
+    def test_semgrep_autofix_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            (
+                "semgrep login",
+                "semgrep login/logout/publish/install-semgrep-pro "
+                "(auth state change or network egress)",
+            ),
+            (
+                "semgrep logout",
+                "semgrep login/logout/publish/install-semgrep-pro "
+                "(auth state change or network egress)",
+            ),
+            (
+                "semgrep publish rules/",
+                "semgrep login/logout/publish/install-semgrep-pro "
+                "(auth state change or network egress)",
+            ),
+            (
+                "semgrep install-semgrep-pro",
+                "semgrep login/logout/publish/install-semgrep-pro "
+                "(auth state change or network egress)",
+            ),
+        ],
+    )
+    def test_semgrep_state_subcommands_blocked(
+        self, command: str, expected: str
+    ) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "semgrep scan --config p/default src/",
+            "semgrep scan --config rules/ file.py --no-git-ignore --metrics=off",
+            "semgrep test rules/",
+            "semgrep validate --config rules/",
+            "semgrep show supported-languages",
+            "semgrep --help",
+            "semgrep scan --config rules/ src/with-ab-suffix/",
+            "echo 'docs mention --autofix but this is not a semgrep call'",
+        ],
+    )
+    def test_semgrep_read_only_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
     def test_blocked_word_in_heredoc_not_matched(self) -> None:
         cmd = "git commit -m \"$(cat <<'EOF'\ngit add blocked\nEOF\n)\""
         assert block_commands.check_command(cmd) is None
