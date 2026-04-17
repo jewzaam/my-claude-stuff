@@ -38,6 +38,8 @@ Blocked categories:
   Dedicated tools: grep, rg (use built-in Grep tool), find (use built-in Glob tool)
   Make targets: python -m pytest/mypy/black/flake8/mutmut (use make targets)
   JSON validation: python -m json.tool (use jq empty / jq .)
+  Semgrep: --autofix/-a/--replacement (mutation), login/logout/publish/
+           install-semgrep-pro (state or network egress)
   GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
            Keep, Forms, Docs, Slides (writes), Classroom, Workflow (all),
            Meet (mutations), Events (subscriptions)
@@ -294,6 +296,23 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+json\.tool\b"),
         "python -m json.tool "
         "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
+    ),
+    # Semgrep autofix: block --autofix/-a/--replacement (mutate source files)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}semgrep{_EXE}\b.*"
+            r"(?:\s--autofix\b|\s-a\b|\s--replacement\b)"
+        ),
+        "semgrep autofix (mutates files — drop --autofix/-a/--replacement)",
+    ),
+    # Semgrep state/network subcommands
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}semgrep{_EXE}{_FLAGS}\s+"
+            r"(?:login|logout|publish|install-semgrep-pro)\b"
+        ),
+        "semgrep login/logout/publish/install-semgrep-pro "
+        "(auth state change or network egress)",
     ),
     # GWS CLI mutation blocking (defense-in-depth alongside OAuth scope control)
     # Gmail: NEVER allow mutations — primary email egress risk
