@@ -80,6 +80,7 @@
   "permissions": {
     "allow": [
       "Bash(*.claude/venvs/*/python* *.claude/skills/voice/scripts/voice.py*)",
+      "Bash(bash -n *)",
       "Bash(gh api *)",
       "Bash(gh auth status *)",
       "Bash(gh issue list *)",
@@ -549,6 +550,8 @@
       "Bash(gws tasks tasks patch --help)",
       "Bash(gws tasks tasks update --help)",
       "Bash(gws workflow --help)",
+      "Bash(jq . *)",
+      "Bash(jq empty *)",
       "Bash(local-transcribe record *)",
       "Bash(ls *)",
       "Bash(make -p -n)",

@@ -990,6 +990,55 @@ class TestCheckCommand:
     def test_python_module_non_make_targets_allowed(self, command: str) -> None:
         assert block_commands.check_command(command) is None
 
+    # --- JSON validation: block python -m json.tool, direct users to jq ---
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            (
+                "python -m json.tool",
+                "python -m json.tool "
+                "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
+            ),
+            (
+                "python3 -m json.tool settings.json",
+                "python -m json.tool "
+                "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
+            ),
+            (
+                "pythonw -m json.tool < data.json",
+                "python -m json.tool "
+                "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
+            ),
+            (
+                "/usr/bin/python3 -m json.tool file.json",
+                "python -m json.tool "
+                "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
+            ),
+            (
+                "env python3 -m json.tool file.json",
+                "python -m json.tool "
+                "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
+            ),
+        ],
+    )
+    def test_python_m_json_tool_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "jq empty file.json",
+            "jq . file.json",
+            "jq '.foo' file.json",
+            "cat file.json | jq .",
+            "python -m json",
+            "python -m jsonlib.tool",
+        ],
+    )
+    def test_json_tool_alternatives_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
     def test_blocked_word_in_heredoc_not_matched(self) -> None:
         cmd = "git commit -m \"$(cat <<'EOF'\ngit add blocked\nEOF\n)\""
         assert block_commands.check_command(cmd) is None
