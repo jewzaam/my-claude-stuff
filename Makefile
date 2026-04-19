@@ -3,12 +3,15 @@
 VENV_DIR ?= .venv
 DATA_DIR := $(HOME)/.claude/my-claude-stuff-data
 ifeq ($(OS),Windows_NT)
-    PYTHON := $(VENV_DIR)/Scripts/python.exe
-    PYTHON_BOOTSTRAP := py -3
+    PYTHON ?= $(VENV_DIR)/Scripts/python.exe
 else
-    PYTHON := $(VENV_DIR)/bin/python
-    PYTHON_BOOTSTRAP := python3
+    PYTHON ?= $(VENV_DIR)/bin/python
 endif
+
+# Interpreter used to bootstrap the venv. CI overrides to `python` so the
+# venv is pinned to the matrix Python installed by setup-python instead of
+# the container's system python3 (see ~/source/standards/build/makefile.md).
+PY_SYS ?= python3
 
 $(info venv: $(VENV_DIR))
 
@@ -17,7 +20,7 @@ default: format lint typecheck test coverage  ## Run all checks (format, lint, t
 check: default  ## Alias for default
 
 $(PYTHON):
-	$(PYTHON_BOOTSTRAP) -m venv $(VENV_DIR)
+	$(PY_SYS) -m venv $(VENV_DIR)
 
 install: $(PYTHON)  ## Install package
 	$(PYTHON) -m pip install .

@@ -89,7 +89,7 @@ class TestCheckCommand:
             "ls -la",
             "make test",
             "make format",
-            "python3 script.py",
+            "python3 scripts/foo.py",
             "echo hello",
             "",
         ],
@@ -746,7 +746,6 @@ class TestCheckCommand:
     @pytest.mark.parametrize(
         "command",
         [
-            "npm install",
             "npm test",
             "gem install bundler",
             "cargo build",
@@ -896,7 +895,6 @@ class TestCheckCommand:
             "wc -c fetch/org.json",
             "stat fetch/org.json",
             "du -h fetch/org.json",
-            "python3 -c 'from pathlib import Path; p=Path(\"fetch/org.json\")'",
             "cat target/output.txt",
             "ls merge-results/",
             "wc -l large_file.txt",
@@ -976,11 +974,9 @@ class TestCheckCommand:
     @pytest.mark.parametrize(
         "command",
         [
-            "python -m pip install foo",
             "python3 -m venv .venv",
             "python -m http.server 8080",
-            "python3 script.py",
-            "python -c 'print(1)'",
+            "python3 scripts/foo.py",
             "make test",
             "make typecheck",
             "make format",
@@ -1120,6 +1116,259 @@ class TestCheckCommand:
         assert block_commands.check_command(cmd) == "git push"
 
 
+class TestInlineExecutionBlocks:
+    """Block inline code execution for language runtimes."""
+
+    _PY_C = (
+        "python -c (inline execution — use Read/Glob/Grep " "or file a missing test)"
+    )
+    _NODE_E = (
+        "node -e/--eval (inline execution — "
+        "use Read/Glob/Grep or file a missing test)"
+    )
+    _RUBY_E = (
+        "ruby/perl -e (inline execution — use Read/Glob/Grep " "or file a missing test)"
+    )
+    _PHP_R = "php -r (inline execution — use Read/Glob/Grep " "or file a missing test)"
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("python -c 'print(1)'", _PY_C),
+            ('python -c "print(1)"', _PY_C),
+            ("python3 -c 'print(1)'", _PY_C),
+            ("pythonw -c 'x'", _PY_C),
+            ("/usr/bin/python3 -c 'x'", _PY_C),
+            ("env python3 -c 'x'", _PY_C),
+            # Even when routed through -m, -c still executes inline code
+            ("python -m mymodule -c 'print(1)'", _PY_C),
+            ("node -e 'console.log(1)'", _NODE_E),
+            ('node -e "console.log(1)"', _NODE_E),
+            ("/usr/bin/node -e 'x'", _NODE_E),
+            ("node --eval 'console.log(1)'", _NODE_E),
+            ('node --eval="console.log(1)"', _NODE_E),
+            ("ruby -e 'puts 1'", _RUBY_E),
+            ("perl -e 'print 1'", _RUBY_E),
+            ("/usr/bin/ruby -e 'x'", _RUBY_E),
+            ("php -r 'echo 1;'", _PHP_R),
+            ('php -r "echo 1;"', _PHP_R),
+        ],
+    )
+    def test_inline_execution_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # Legit flags that are not inline execution
+            "python -m venv .venv",
+            "python -m http.server 8080",
+            "node --version",
+            "node server.js",
+            "ruby --version",
+            "perl --version",
+            "php --version",
+            # node -c is a syntax check (read-only) and not in our block list
+            "node -c file.js",
+        ],
+    )
+    def test_inline_execution_false_positives_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- Heredoc to runtime ---
+
+    _HEREDOC = "heredoc to runtime (inline execution — file a missing test instead)"
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("python <<EOF\nprint(1)\nEOF", _HEREDOC),
+            ("python3 <<EOF\nprint(1)\nEOF", _HEREDOC),
+            ("python <<'EOF'\nprint(1)\nEOF", _HEREDOC),
+            ('python <<"EOF"\nprint(1)\nEOF', _HEREDOC),
+            ("bash <<EOF\necho hi\nEOF", _HEREDOC),
+            ("sh <<-EOF\n  echo hi\nEOF", _HEREDOC),
+            ("node <<EOF\nconsole.log(1)\nEOF", _HEREDOC),
+            ("ruby <<EOF\nputs 1\nEOF", _HEREDOC),
+            ("perl <<EOF\nprint 1\nEOF", _HEREDOC),
+            ("php <<EOF\necho 1;\nEOF", _HEREDOC),
+            ("/usr/bin/python3 <<EOF\nprint(1)\nEOF", _HEREDOC),
+        ],
+    )
+    def test_heredoc_to_runtime_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # Heredoc into a non-runtime: still allowed
+            "cat <<EOF\nhello\nEOF",
+            "tee file.txt <<EOF\nhello\nEOF",
+            # git commit body heredoc (no runtime after <<)
+            "git commit -m \"$(cat <<'EOF'\nmsg body\nEOF\n)\"",
+        ],
+    )
+    def test_heredoc_to_non_runtime_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- Process substitution to runtime ---
+
+    _PROCSUB = (
+        "process substitution to runtime (inline execution — "
+        "use Read/Glob/Grep or file a missing test)"
+    )
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("python <(echo 'print(1)')", _PROCSUB),
+            ("python3 <(cat foo.py)", _PROCSUB),
+            ("bash <(echo 'ls')", _PROCSUB),
+            ("sh <(echo 'ls')", _PROCSUB),
+            ("node <(cat foo.js)", _PROCSUB),
+            ("ruby <(echo 'puts 1')", _PROCSUB),
+        ],
+    )
+    def test_process_substitution_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    # --- Shell -c wrapping a runtime ---
+
+    _SHELL_WRAP = (
+        "shell -c wrapping runtime (inline execution — "
+        "use Read/Glob/Grep or file a missing test)"
+    )
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("bash -c \"python -c 'print(1)'\"", _SHELL_WRAP),
+            ("bash -c 'python script.py'", _SHELL_WRAP),
+            ('sh -c "python3 -c x"', _SHELL_WRAP),
+            ("sh -c 'node -e x'", _SHELL_WRAP),
+            ("zsh -c 'perl -e x'", _SHELL_WRAP),
+            ("bash -c 'ruby -e x'", _SHELL_WRAP),
+            ("bash -c 'php -r x'", _SHELL_WRAP),
+            ('/bin/bash -c "python foo.py"', _SHELL_WRAP),
+        ],
+    )
+    def test_shell_wrap_runtime_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # Plain bash -c with a non-runtime command — legit CI/git pattern
+            "bash -c 'git status'",
+            'bash -c "git log --oneline"',
+            "sh -c 'make test'",
+            "bash -c 'echo hello'",
+            "bash -c 'ls -la'",
+        ],
+    )
+    def test_shell_wrap_non_runtime_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    # --- Arbitrary .py file execution ---
+
+    _ARBITRARY_PY = (
+        "running arbitrary .py file (use Read/Glob/Grep; "
+        "file a missing test if runtime verification is required)"
+    )
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("python script.py", _ARBITRARY_PY),
+            ("python3 explore.py", _ARBITRARY_PY),
+            ("pythonw tool.py", _ARBITRARY_PY),
+            ("python /tmp/explore.py", _ARBITRARY_PY),
+            ("python ./explore.py", _ARBITRARY_PY),
+            ("/usr/bin/python3 foo.py", _ARBITRARY_PY),
+            ("env python3 explore.py", _ARBITRARY_PY),
+        ],
+    )
+    def test_arbitrary_py_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # Project scripts and review-skill scripts live under scripts/
+            "python scripts/foo.py",
+            "python3 scripts/block_commands.py",
+            "python ./scripts/helper.py",
+            "python ~/.claude/skills/review/scripts/validate-findings.py file.md",
+            "python ~/.claude/skills/review/scripts/render-review.py",
+            "python /home/user/src/proj/scripts/explore.py",
+        ],
+    )
+    def test_scripts_path_py_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestPackageInstallBlocks:
+    """Block package installation against the user's environment."""
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            (
+                "pip install foo",
+                "pip install (report missing dep as a finding, do not install)",
+            ),
+            (
+                "pip3 install foo bar",
+                "pip install (report missing dep as a finding, do not install)",
+            ),
+            (
+                "python -m pip install foo",
+                "pip install (report missing dep as a finding, do not install)",
+            ),
+            (
+                "python3 -m pip install --upgrade foo",
+                "pip install (report missing dep as a finding, do not install)",
+            ),
+            (
+                "npm install",
+                "npm install (report missing dep as a finding, do not install)",
+            ),
+            (
+                "npm install --save-dev foo",
+                "npm install (report missing dep as a finding, do not install)",
+            ),
+            (
+                "cargo install ripgrep",
+                "cargo install (report missing dep as a finding, do not install)",
+            ),
+            (
+                "go install example.com/cmd/foo@latest",
+                "go install (report missing dep as a finding, do not install)",
+            ),
+        ],
+    )
+    def test_package_install_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # Not install subcommands
+            "pip list",
+            "pip show foo",
+            "npm ls",
+            "npm test",
+            "npm run build",
+            "cargo build",
+            "cargo test",
+            "go build",
+            "go test ./...",
+        ],
+    )
+    def test_package_non_install_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
 class TestCommandChainSplitting:
     """Test chain splitting and per-segment checking."""
 
@@ -1214,6 +1463,27 @@ class TestPresplitPatterns:
         ],
     )
     def test_pipe_to_shell_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    _GENERIC_PIPE = "pipe to runtime (inline execution — file a missing test instead)"
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            # Non-curl/wget source piped to a runtime — catches agent-authored
+            # stdin-script patterns (cat script | python).
+            ("cat foo.py | python", _GENERIC_PIPE),
+            ("cat foo.py | python3", _GENERIC_PIPE),
+            ("echo 'print(1)' | python", _GENERIC_PIPE),
+            ("cat foo.js | node", _GENERIC_PIPE),
+            ("cat foo.rb | ruby", _GENERIC_PIPE),
+            ("cat foo.pl | perl", _GENERIC_PIPE),
+            ("cat foo.sh | bash", _GENERIC_PIPE),
+            ("echo 'ls' | sh", _GENERIC_PIPE),
+            ("cat foo.php | php", _GENERIC_PIPE),
+        ],
+    )
+    def test_generic_pipe_to_runtime_blocked(self, command: str, expected: str) -> None:
         assert block_commands.check_command(command) == expected
 
     @pytest.mark.parametrize(

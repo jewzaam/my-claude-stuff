@@ -6,11 +6,12 @@ Reads JSON from stdin with tool_input.command and checks against blocked
 command patterns. Exits 2 to block, 0 to allow.
 
 Preprocessing pipeline:
-  1. Strip heredoc bodies to avoid false positives from string literals
-  2. Normalize backslashes to forward slashes for consistent path matching
-  3. Check presplit patterns (pipe-to-shell) on full text
-  4. Split command chains (&&, ||, ;, |) respecting quoted strings
-  5. Check each segment against BLOCKED_PATTERNS
+  1. Check heredoc-to-runtime on raw text (before heredoc stripping)
+  2. Strip heredoc bodies to avoid false positives from string literals
+  3. Normalize backslashes to forward slashes for consistent path matching
+  4. Check presplit patterns (pipe-to-shell) on full text
+  5. Split command chains (&&, ||, ;, |) respecting quoted strings
+  6. Check each segment against BLOCKED_PATTERNS
 
 Blocked categories:
   Git: -C flag (blocked for absolute/parent/home paths;
@@ -38,6 +39,13 @@ Blocked categories:
   Dedicated tools: grep, rg (use built-in Grep tool), find (use built-in Glob tool)
   Make targets: python -m pytest/mypy/black/flake8/mutmut (use make targets)
   JSON validation: python -m json.tool (use jq empty / jq .)
+  Inline execution: python -c, node -e, ruby/perl -e, php -r,
+       pipe-to-runtime (any ``| <runtime>``),
+       heredoc-to-runtime (``<runtime> <<EOF``),
+       process substitution (``<runtime> <(...)``),
+       shell -c wrapping a runtime (``bash -c "python ..."``),
+       arbitrary ``python <path>.py`` outside ``scripts/`` directories
+  Package install: pip install, npm install, cargo install, go install
   Semgrep: --autofix/-a/--replacement (mutation), login/logout/publish/
            install-semgrep-pro (state or network egress)
   GWS CLI: Gmail, Calendar, Chat (all mutations), Drive, Sheets, Tasks,
@@ -72,21 +80,37 @@ _FLAGS = r"(?:\s+(?:-\S+|\S+=\S+)(?:\s+\S+)?)*"
 # Optional Windows-style single-letter flags: /q, /f, /S, etc.
 _WFLAGS = r"(?:\s+/[a-zA-Z])*"
 
-# Shells and interpreters that should never receive piped remote content.
-# Covers common defaults: POSIX shells, popular interactive shells,
-# and scripting language interpreters.  Windows .exe variants are
-# handled by the optional _EXE suffix already defined above.
+# Shells and interpreters that should never receive piped remote content
+# or execute inline/stdin scripts supplied by the agent.  Covers POSIX
+# shells, popular interactive shells, and scripting language interpreters.
+# Windows .exe variants are handled by the optional _EXE suffix.
 _PIPE_SHELLS = (
     r"(?:ba|da|k|c|tc|z|fi)?sh"  # sh, bash, dash, ksh, csh, tcsh, zsh, fish
     r"|python[3w]?"  # python, python3, pythonw
-    r"|perl|ruby|node"
+    r"|perl|ruby|node|php"
 )
 
-# Patterns checked BEFORE chain splitting (span pipes intentionally)
+# Patterns checked on raw command BEFORE heredoc stripping — needed so
+# `python <<EOF ... EOF` can be detected (heredoc stripping drops the
+# language marker by splitting on `<<`).
+HEREDOC_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(rf"{_PATH}(?:{_PIPE_SHELLS}){_EXE}\s*<<-?\s*['\"]?\w+"),
+        "heredoc to runtime (inline execution — file a missing test instead)",
+    ),
+]
+
+# Patterns checked AFTER heredoc stripping but BEFORE chain splitting
+# (they span pipes intentionally).  Ordered so the curl/wget case keeps
+# its historical "pipe-to-shell" message for existing consumers.
 PRESPLIT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(rf"(?:curl|wget)\b.*\|\s*{_PATH}(?:{_PIPE_SHELLS}){_EXE}\b"),
         "pipe-to-shell",
+    ),
+    (
+        re.compile(rf"\|\s*{_PATH}(?:{_PIPE_SHELLS}){_EXE}\b"),
+        "pipe to runtime (inline execution — file a missing test instead)",
     ),
 ]
 
@@ -296,6 +320,75 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+json\.tool\b"),
         "python -m json.tool "
         "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
+    ),
+    # Shell -c wrapping a runtime: bash -c "python ...", sh -c 'node ...'
+    # Must come BEFORE individual inline-execution patterns so the outer
+    # wrapper is identified rather than the inner `-c`/`-e`.
+    # Plain shell -c with non-runtime commands (git, CI scripts) is allowed.
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}(?:ba|da|k|c|tc|z|fi)?sh{_EXE}\s+-c\s+"
+            r"['\"]?\s*"
+            rf"{_PATH}(?:python[3w]?|node|perl|ruby|php)\b"
+        ),
+        "shell -c wrapping runtime (inline execution — "
+        "use Read/Glob/Grep or file a missing test)",
+    ),
+    # Inline code execution (python -c / -m...-c, node -e, ruby/perl -e, php -r)
+    # Use Read/Glob/Grep to inspect files; file missing tests for runtime checks.
+    (
+        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\b[^|;&]*\s-c\b"),
+        "python -c (inline execution — use Read/Glob/Grep or file a missing test)",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}node{_EXE}\b[^|;&]*\s(?:-e|--eval)\b"),
+        "node -e/--eval (inline execution — "
+        "use Read/Glob/Grep or file a missing test)",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}(?:ruby|perl){_EXE}\b[^|;&]*\s-e\b"),
+        "ruby/perl -e (inline execution — use Read/Glob/Grep "
+        "or file a missing test)",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}php{_EXE}\b[^|;&]*\s-r\b"),
+        "php -r (inline execution — use Read/Glob/Grep or file a missing test)",
+    ),
+    # Process substitution to runtime: python <(...), bash <(...), etc.
+    (
+        re.compile(rf"{_ENV}{_PATH}(?:{_PIPE_SHELLS}){_EXE}\s+<\("),
+        "process substitution to runtime (inline execution — "
+        "use Read/Glob/Grep or file a missing test)",
+    ),
+    # Running arbitrary .py files — usually agent-authored "explore" scripts.
+    # Allowed when the path contains 'scripts/' (review skill scripts live
+    # under ~/.claude/skills/review/scripts/ and project code under scripts/).
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+"
+            r"(?!-)"
+            r"(?!.*scripts/)"
+            r"\S+\.py\b"
+        ),
+        "running arbitrary .py file (use Read/Glob/Grep; "
+        "file a missing test if runtime verification is required)",
+    ),
+    # Package installation against the user's environment
+    (
+        re.compile(r"\bpip[23]?\s+install\b"),
+        "pip install (report missing dep as a finding, do not install)",
+    ),
+    (
+        re.compile(r"\bnpm\s+install\b"),
+        "npm install (report missing dep as a finding, do not install)",
+    ),
+    (
+        re.compile(r"\bcargo\s+install\b"),
+        "cargo install (report missing dep as a finding, do not install)",
+    ),
+    (
+        re.compile(r"\bgo\s+install\b"),
+        "go install (report missing dep as a finding, do not install)",
     ),
     # Semgrep autofix: block --autofix/-a/--replacement (mutate source files)
     (
@@ -643,23 +736,32 @@ def check_command(command: str) -> str | None:
     """Return the blocked command name if matched, or None if allowed.
 
     Pipeline:
-      1. Strip heredoc body to avoid false positives from string literals
-      2. Normalize backslashes to forward slashes for consistent path matching
-      3. Check presplit patterns on full text (pipe-to-shell detection)
-      4. Split command chains respecting quoted strings
-      5. Check each segment against BLOCKED_PATTERNS
+      1. Check heredoc-to-runtime on raw text (before stripping — the
+         language marker sits before `<<` and would otherwise survive,
+         but the ``<<`` itself is needed to recognise the heredoc form)
+      2. Strip heredoc body to avoid false positives from string literals
+      3. Normalize backslashes to forward slashes for consistent path matching
+      4. Check presplit patterns on full text (pipe-to-shell detection)
+      5. Split command chains respecting quoted strings
+      6. Check each segment against BLOCKED_PATTERNS
     """
-    # 1. Strip heredoc body
+    # 1. Heredoc-to-runtime check on raw command (before heredoc stripping)
+    raw_normalized = command.replace("\\", "/")
+    for pattern, name in HEREDOC_PATTERNS:
+        if pattern.search(raw_normalized):
+            return name
+
+    # 2. Strip heredoc body
     check_text = command.split("<<")[0] if "<<" in command else command
-    # 2. Normalize backslashes to forward slashes
+    # 3. Normalize backslashes to forward slashes
     check_text = check_text.replace("\\", "/")
 
-    # 3. Check presplit patterns (span pipes intentionally)
+    # 4. Check presplit patterns (span pipes intentionally)
     for pattern, name in PRESPLIT_PATTERNS:
         if pattern.search(check_text):
             return name
 
-    # 3b. GraphQL query exception: gh api graphql with -f/-F flags is only
+    # 4b. GraphQL query exception: gh api graphql with -f/-F flags is only
     # mutating if the query contains a 'mutation' operation.  Query operations
     # (explicit 'query' keyword or shorthand '{...}') are read-only.
     if _GH_API_GRAPHQL_RE.search(check_text):
@@ -667,10 +769,10 @@ def check_command(command: str) -> str | None:
             return "gh api (mutation)"
         return None
 
-    # 4. Split into chain segments
+    # 5. Split into chain segments
     segments = split_command_chain(check_text)
 
-    # 5. Check each segment against blocked patterns
+    # 6. Check each segment against blocked patterns
     for segment in segments:
         for pattern, name in BLOCKED_PATTERNS:
             if pattern.search(segment):
