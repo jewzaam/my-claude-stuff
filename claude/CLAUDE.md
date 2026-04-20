@@ -5,6 +5,7 @@
 ## Restrictions
 - **Never execute**: `git push`, `sudo`, or `su`
 - **`git -C` is allowed for relative subdirectory paths** (e.g., `git -C nexus-ui remote -v`), **`git-worktrees/` paths** (e.g., `git -C git-worktrees/my-pr/ log`), **and read-only subcommands** (`status`, `log`, `diff`) with any path — blocked for absolute (`/`), parent (`..`), and home (`~`) paths
+- **`make -C` / `make --directory=` is allowed for relative subdirectory paths** (e.g., `make -C nexus-ui test`) — blocked for absolute (`/`), parent (`..`), home (`~`) paths and `pwd` substitutions (`$(pwd)`, `` `pwd` ``, `$PWD`, `${PWD}`); omit `-C` if you mean cwd
 - **No commits to default branches** unless explicitly instructed
 - **Work on fork/feature branches** or current branch if specified
 - **Never use destructive data operations** (wipe DB, drop tables, destructive migrations) without explicit user approval

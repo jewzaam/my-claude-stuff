@@ -22,7 +22,10 @@ Blocked categories:
        stash (except list/show), commit --amend/-a, checkout -- (discard),
        restore (except --staged), rebase, filter-branch, filter-repo,
        reflog expire, gc --prune=now
-  Unix: sudo, su, rm -r, make reconcile, find -delete, chmod 777, mkfs,
+  Make: -C/--directory flag (blocked for absolute/parent/home paths and
+        pwd substitutions like $(pwd), `pwd`, $PWD; subdirectory paths allowed),
+        reconcile
+  Unix: sudo, su, rm -r, find -delete, chmod 777, mkfs,
         dd of=/dev/, shred, truncate
   Windows: rd/rmdir /s, del/erase /s, format, diskpart, bcdedit, sc delete,
            cipher /w, Remove-Item -Recurse, reg delete, takeown,
@@ -194,6 +197,17 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         "rm (recursive)",
     ),
     (re.compile(rf"{_ENV}{_PATH}make{_EXE}{_FLAGS}\s+reconcile\b"), "make reconcile"),
+    # make -C / --directory: block absolute, parent (..), home (~) paths,
+    # and pwd substitutions ($(pwd), `pwd`, $PWD, ${PWD}).
+    # Relative subdirectory paths are allowed (e.g. make -C nexus-ui test).
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}make{_EXE}\s+(?:-C\s+|--directory=)"
+            r"(?:\.\.|[/~]|\$\(pwd\)|`pwd`|\$\{?PWD\}?)"
+        ),
+        "make -C/--directory (blocked for absolute/parent/home paths and pwd"
+        " substitutions — omit -C if you mean cwd; subdirectory paths are allowed)",
+    ),
     (
         re.compile(
             rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+commit\s.*"
