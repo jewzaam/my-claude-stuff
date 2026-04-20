@@ -248,6 +248,44 @@ class TestCheckCommand:
     ) -> None:
         assert block_commands.check_command(command) == expected
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "make -C /some/path test",
+            "make -C /tmp build",
+            "make --directory=/path test",
+            "make -C ../sibling test",
+            "make -C .. lint",
+            "make -C ~/repo test",
+            "make -C ~/repos/other build",
+            "make -C $(pwd) test",
+            "make -C ${PWD} test",
+            "make -C $PWD test",
+            "make -C `pwd` test",
+            "make --directory=$(pwd) test",
+            "make --directory=`pwd` test",
+            "/usr/bin/make -C /tmp test",
+            "env make -C $(pwd) build",
+        ],
+    )
+    def test_make_dash_c_blocked(self, command: str) -> None:
+        assert block_commands.check_command(command) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "make -C nexus-ui test",
+            "make -C ./subdir test",
+            "make -C subdir build",
+            "make -C nexus-ui lint",
+            "make --directory=subdir test",
+            "make --directory=./subdir build",
+            "make -C .hidden-dir test",
+        ],
+    )
+    def test_make_dash_c_relative_subdir_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
     def test_git_commit_without_append_a_allowed(self) -> None:
         assert block_commands.check_command("git commit -m test") is None
         assert block_commands.check_command("git commit -m fix-a-bug") is None
