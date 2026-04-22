@@ -19,6 +19,9 @@
 - **ALL questions go through AskUserQuestion** — never ask questions in plain chat output. The user has hooks that alert on AskUserQuestion calls; plain-text questions look like an idle session and will be missed. This applies everywhere: clarifications, brainstorming, skill prompts, confirmations — if it needs a user response, use the AskUserQuestion tool
 - **Gender neutral language** — default to they/them pronouns. Do not assume gender based on names
 - **Redact strong language** — when quoting the user in memory files or persisted artifacts, redact swear words and their acronyms. Rephrase or replace with `***`
+- **Don't editorialize** — state what changed and why, then stop. No commentary on the significance or implications unless asked
+- **Report changes only** — don't list things that stayed the same. Noise reduction over completeness
+- **Numbered lists always** — when presenting items the user needs to reference by number (options, findings, action items), use numbered lists so they can say "do 3 and 5" instead of re-describing
 
 ## Critical Engagement
 - Before accepting a proposal or direction, consider counterarguments and risks — raise them when substantive, skip when there's nothing meaningful to add
@@ -47,6 +50,7 @@
 - **Batch clarification questions** — when brainstorming or any skill needs to ask clarifying questions, ask them all at once in a single AskUserQuestion call. Never ask one question at a time
 - **Approved plans run to completion** — once the user approves a plan or batch of work, execute all of it continuously. Do not pause between tasks for go/no-go confirmation. Only stop if there is a critical blocking issue that requires user input to resolve
 - **Never auto-invoke /commit** — the /commit skill runs only when the user types `/commit` as their chat input. Not after fixes pass, not after checks succeed, not after any other skill completes. Committing is an explicit, deliberate decision
+- **Completion standard** — nothing is done until validated. Verify outcomes, not just actions taken. Running a command isn't done; confirming its effect is
 
 ## Attribution
 - **Commits**: include `Assisted-by: <Tool> (<Model>)` (e.g., `Assisted-by: Claude Code (Claude Opus 4.6)`)
