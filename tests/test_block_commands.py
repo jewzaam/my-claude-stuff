@@ -1324,6 +1324,12 @@ class TestInlineExecutionBlocks:
             ("python ./explore.py", _ARBITRARY_PY),
             ("/usr/bin/python3 foo.py", _ARBITRARY_PY),
             ("env python3 explore.py", _ARBITRARY_PY),
+            # Paths that look like .claude/ but aren't
+            ("python3 /stupid.claude/evil.py", _ARBITRARY_PY),
+            ("python3 foo.claude/bar.py", _ARBITRARY_PY),
+            # Paths that look like scripts/ but aren't
+            ("python3 myfavscripts/evil.py", _ARBITRARY_PY),
+            ("python3 /tmp/notscripts/foo.py", _ARBITRARY_PY),
         ],
     )
     def test_arbitrary_py_blocked(self, command: str, expected: str) -> None:
@@ -1339,6 +1345,10 @@ class TestInlineExecutionBlocks:
             "python ~/.claude/skills/review/scripts/validate-findings.py file.md",
             "python ~/.claude/skills/review/scripts/render-review.py",
             "python /home/user/src/proj/scripts/explore.py",
+            # Skill and hook scripts under .claude/ directories
+            "python3 .claude/skills/gate-assessment/consolidate.py --input-dir foo",
+            "python .claude/hooks/my-hook.py",
+            "python3 /home/user/.claude/skills/review/analyze.py file.md",
         ],
     )
     def test_scripts_path_py_allowed(self, command: str) -> None:

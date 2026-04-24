@@ -375,13 +375,14 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         "use Read/Glob/Grep or file a missing test)",
     ),
     # Running arbitrary .py files — usually agent-authored "explore" scripts.
-    # Allowed when the path contains 'scripts/' (review skill scripts live
-    # under ~/.claude/skills/review/scripts/ and project code under scripts/).
+    # Allowed when the path contains 'scripts/' or '.claude/' (skill and
+    # hook scripts live under .claude/ and project code under scripts/).
     (
         re.compile(
             rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+"
             r"(?!-)"
-            r"(?!.*scripts/)"
+            r"(?!(?:scripts/|\S*[/~]scripts/))"
+            r"(?!(?:\.claude/|\S*[/~]\.claude/))"
             r"\S+\.py\b"
         ),
         "running arbitrary .py file (use Read/Glob/Grep; "
