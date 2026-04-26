@@ -10,8 +10,11 @@ Preprocessing pipeline:
   2. Strip heredoc bodies to avoid false positives from string literals
   3. Normalize backslashes to forward slashes for consistent path matching
   4. Check presplit patterns (pipe-to-shell) on full text
-  5. Split command chains (&&, ||, ;, |) respecting quoted strings
-  6. Check each segment against BLOCKED_PATTERNS
+  5. Split command chains (&&, ||, ;, |) respecting quoted strings.
+     Each segment is tagged with whether it followed a `|` (pipe filter).
+  6. Check each segment against BLOCKED_PATTERNS, plus LEADING_ONLY_PATTERNS
+     for non-filter segments only (so e.g. `cmd | grep foo` is allowed but
+     bare `grep foo` and `cmd && grep foo` remain blocked)
 
 Blocked categories:
   Git: -C flag (blocked for absolute/parent/home paths;
@@ -39,7 +42,9 @@ Blocked categories:
   Cross-platform: curl/wget piped to shell/interpreter (presplit)
               sh, bash, dash, ksh, csh, tcsh, zsh, fish,
               python, python3, pythonw, perl, ruby, node
-  Dedicated tools: grep, rg (use built-in Grep tool), find (use built-in Glob tool)
+  Dedicated tools: grep, rg (use built-in Grep tool when searching the
+                   filesystem; allowed as downstream pipe filters, e.g.
+                   `cmd --help | grep foo`), find (use built-in Glob tool)
   Make targets: python -m pytest/mypy/black/flake8/mutmut (use make targets)
   JSON validation: python -m json.tool (use jq empty / jq .)
   Inline execution: python -c, node -e, ruby/perl -e, php -r,
@@ -294,16 +299,10 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # PowerShell process/service cmdlets
     (re.compile(r"\bStop-Service\b", re.IGNORECASE), "Stop-Service"),
     (re.compile(r"\bStop-Process\b", re.IGNORECASE), "Stop-Process"),
-    # Dedicated tools: block Bash grep/rg/find — use built-in Grep/Glob tools
-    # Negative lookbehind `(?<!-)` excludes flag-style uses like `git log --grep=`
-    (
-        re.compile(rf"{_ENV}{_PATH}(?<!-)grep{_EXE}\b"),
-        "grep (use the built-in Grep tool)",
-    ),
-    (
-        re.compile(rf"{_ENV}{_PATH}(?<!-)rg{_EXE}\b"),
-        "rg (use the built-in Grep tool)",
-    ),
+    # Dedicated tools: block Bash find — use built-in Glob tool.
+    # grep/rg are in LEADING_ONLY_PATTERNS because they are still useful as
+    # downstream filters on another command's stdout (the built-in Grep tool
+    # only searches files, not piped input).
     (
         re.compile(rf"^{_ENV}{_PATH}(?<!-)find{_EXE}\b"),
         "find (use the built-in Glob tool)",
@@ -681,17 +680,41 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     ),
 ]
 
+# Patterns that block only the LEADING command of a chain segment.  Skipped
+# when the segment is a downstream pipe filter (the segment after a `|`),
+# since those tools are still legitimate as filters on another command's
+# stdout — the built-in Grep tool can't operate on piped input.
+# Negative lookbehind `(?<!-)` excludes flag-style uses like `git log --grep=`.
+LEADING_ONLY_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(rf"{_ENV}{_PATH}(?<!-)grep{_EXE}\b"),
+        "grep (use the built-in Grep tool, or pipe another command's output"
+        " through grep — `cmd | grep foo`)",
+    ),
+    (
+        re.compile(rf"{_ENV}{_PATH}(?<!-)rg{_EXE}\b"),
+        "rg (use the built-in Grep tool, or pipe another command's output"
+        " through rg — `cmd | rg foo`)",
+    ),
+]
 
-def split_command_chain(command: str) -> list[str]:
+
+def split_command_chain(command: str) -> list[tuple[str, bool]]:
     """Split on &&, ||, ;, | respecting quoted strings.
 
     Character-by-character parser tracking single/double quote state.
-    Returns stripped non-empty segments.
+    Returns stripped non-empty segments paired with an ``is_pipe_filter``
+    flag — True when the segment was produced by a ``|`` split (i.e. it
+    consumes another command's stdout).  Segments produced by ``&&``,
+    ``||``, ``;`` or as the first segment have the flag set to False.
     """
-    segments: list[str] = []
+    segments: list[tuple[str, bool]] = []
     current: list[str] = []
     in_single = False
     in_double = False
+    # Whether the segment currently being accumulated was preceded by `|`.
+    # The first segment has no preceding operator, so it is not a filter.
+    pending_is_filter = False
     i = 0
     length = len(command)
 
@@ -723,16 +746,18 @@ def split_command_chain(command: str) -> list[str]:
             if i + 1 < length and command[i : i + 2] in ("&&", "||"):
                 segment = "".join(current).strip()
                 if segment:
-                    segments.append(segment)
+                    segments.append((segment, pending_is_filter))
                 current = []
+                pending_is_filter = False
                 i += 2
                 continue
             # Check for ; or |
             if ch in (";", "|"):
                 segment = "".join(current).strip()
                 if segment:
-                    segments.append(segment)
+                    segments.append((segment, pending_is_filter))
                 current = []
+                pending_is_filter = ch == "|"
                 i += 1
                 continue
 
@@ -742,7 +767,7 @@ def split_command_chain(command: str) -> list[str]:
     # Final segment
     segment = "".join(current).strip()
     if segment:
-        segments.append(segment)
+        segments.append((segment, pending_is_filter))
 
     return segments
 
@@ -757,8 +782,10 @@ def check_command(command: str) -> str | None:
       2. Strip heredoc body to avoid false positives from string literals
       3. Normalize backslashes to forward slashes for consistent path matching
       4. Check presplit patterns on full text (pipe-to-shell detection)
-      5. Split command chains respecting quoted strings
-      6. Check each segment against BLOCKED_PATTERNS
+      5. Split command chains respecting quoted strings (each segment
+         tagged with whether it followed a `|`)
+      6. Check each segment against BLOCKED_PATTERNS, plus
+         LEADING_ONLY_PATTERNS for non-filter (non-pipe-downstream) segments
     """
     # 1. Heredoc-to-runtime check on raw command (before heredoc stripping)
     raw_normalized = command.replace("\\", "/")
@@ -784,14 +811,18 @@ def check_command(command: str) -> str | None:
             return "gh api (mutation)"
         return None
 
-    # 5. Split into chain segments
+    # 5. Split into chain segments (each tagged with is_pipe_filter)
     segments = split_command_chain(check_text)
 
     # 6. Check each segment against blocked patterns
-    for segment in segments:
+    for segment, is_filter in segments:
         for pattern, name in BLOCKED_PATTERNS:
             if pattern.search(segment):
                 return name
+        if not is_filter:
+            for pattern, name in LEADING_ONLY_PATTERNS:
+                if pattern.search(segment):
+                    return name
     return None
 
 

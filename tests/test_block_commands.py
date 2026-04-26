@@ -900,21 +900,37 @@ class TestCheckCommand:
     def test_network_tool_flag_false_positives_allowed(self, command: str) -> None:
         assert block_commands.check_command(command) is None
 
-    # --- Dedicated tools: grep/rg blocked (use built-in Grep tool) ---
+    # --- Dedicated tools: grep/rg blocked when leading (use built-in Grep tool) ---
+
+    GREP_BLOCKED_MSG = (
+        "grep (use the built-in Grep tool, or pipe another command's output"
+        " through grep — `cmd | grep foo`)"
+    )
+    RG_BLOCKED_MSG = (
+        "rg (use the built-in Grep tool, or pipe another command's output"
+        " through rg — `cmd | rg foo`)"
+    )
 
     @pytest.mark.parametrize(
         "command,expected",
         [
-            ("grep foo bar.txt", "grep (use the built-in Grep tool)"),
-            ("grep -r pattern .", "grep (use the built-in Grep tool)"),
-            ("grep -rn 'some pattern' src/", "grep (use the built-in Grep tool)"),
-            ("/usr/bin/grep foo", "grep (use the built-in Grep tool)"),
-            ("grep.exe foo bar", "grep (use the built-in Grep tool)"),
-            ("env grep foo", "grep (use the built-in Grep tool)"),
-            ("rg pattern", "rg (use the built-in Grep tool)"),
-            ("rg -t py pattern src/", "rg (use the built-in Grep tool)"),
-            ("/usr/bin/rg foo", "rg (use the built-in Grep tool)"),
-            ("rg.exe foo", "rg (use the built-in Grep tool)"),
+            ("grep foo bar.txt", GREP_BLOCKED_MSG),
+            ("grep -r pattern .", GREP_BLOCKED_MSG),
+            ("grep -rn 'some pattern' src/", GREP_BLOCKED_MSG),
+            ("/usr/bin/grep foo", GREP_BLOCKED_MSG),
+            ("grep.exe foo bar", GREP_BLOCKED_MSG),
+            ("env grep foo", GREP_BLOCKED_MSG),
+            ("rg pattern", RG_BLOCKED_MSG),
+            ("rg -t py pattern src/", RG_BLOCKED_MSG),
+            ("/usr/bin/rg foo", RG_BLOCKED_MSG),
+            ("rg.exe foo", RG_BLOCKED_MSG),
+            # Still blocked when grep/rg lead a chain segment after &&/||/;
+            ("true && grep foo bar.txt", GREP_BLOCKED_MSG),
+            ("false || grep foo bar.txt", GREP_BLOCKED_MSG),
+            ("ls; grep foo bar.txt", GREP_BLOCKED_MSG),
+            ("true && rg foo", RG_BLOCKED_MSG),
+            # Allowed downstream of `|` but reset by `&&` further along
+            ("ls | wc -l && grep foo bar.txt", GREP_BLOCKED_MSG),
         ],
     )
     def test_grep_rg_blocked(self, command: str, expected: str) -> None:
@@ -936,6 +952,13 @@ class TestCheckCommand:
             "cat target/output.txt",
             "ls merge-results/",
             "wc -l large_file.txt",
+            # Allowed as a downstream pipe filter
+            "semgrep --help 2>&1 | grep -A 3 -i test",
+            "ls -lh | grep foo",
+            "git log --oneline | grep fix",
+            "make help | rg test",
+            "echo hello | grep h | wc -l",
+            "cat file.txt | grep foo | rg bar",
         ],
     )
     def test_grep_rg_false_positives_allowed(self, command: str) -> None:
@@ -1445,35 +1468,76 @@ class TestSplitCommandChain:
     """Unit tests for the split_command_chain function."""
 
     def test_simple_and(self) -> None:
-        assert block_commands.split_command_chain("ls && pwd") == ["ls", "pwd"]
+        assert block_commands.split_command_chain("ls && pwd") == [
+            ("ls", False),
+            ("pwd", False),
+        ]
 
     def test_simple_or(self) -> None:
-        assert block_commands.split_command_chain("a || b") == ["a", "b"]
+        assert block_commands.split_command_chain("a || b") == [
+            ("a", False),
+            ("b", False),
+        ]
 
     def test_semicolon(self) -> None:
-        assert block_commands.split_command_chain("a; b") == ["a", "b"]
+        assert block_commands.split_command_chain("a; b") == [
+            ("a", False),
+            ("b", False),
+        ]
 
     def test_pipe(self) -> None:
-        assert block_commands.split_command_chain("a | b") == ["a", "b"]
+        assert block_commands.split_command_chain("a | b") == [
+            ("a", False),
+            ("b", True),
+        ]
+
+    def test_pipe_chain(self) -> None:
+        # Each segment after a `|` is flagged as a filter.
+        assert block_commands.split_command_chain("a | b | c") == [
+            ("a", False),
+            ("b", True),
+            ("c", True),
+        ]
+
+    def test_pipe_filter_resets_after_logical_operator(self) -> None:
+        # After && / || / ;, the next segment is no longer a pipe filter.
+        assert block_commands.split_command_chain("a | b && c") == [
+            ("a", False),
+            ("b", True),
+            ("c", False),
+        ]
+        assert block_commands.split_command_chain("a | b ; c") == [
+            ("a", False),
+            ("b", True),
+            ("c", False),
+        ]
 
     def test_mixed(self) -> None:
         result = block_commands.split_command_chain("a && b; c | d || e")
-        assert result == ["a", "b", "c", "d", "e"]
+        assert result == [
+            ("a", False),
+            ("b", False),
+            ("c", False),
+            ("d", True),
+            ("e", False),
+        ]
 
     def test_quoted_double(self) -> None:
         result = block_commands.split_command_chain('echo "a && b" && c')
-        assert result == ['echo "a && b"', "c"]
+        assert result == [('echo "a && b"', False), ("c", False)]
 
     def test_quoted_single(self) -> None:
         result = block_commands.split_command_chain("echo 'a | b'; c")
-        assert result == ["echo 'a | b'", "c"]
+        assert result == [("echo 'a | b'", False), ("c", False)]
 
     def test_empty_segments_stripped(self) -> None:
         result = block_commands.split_command_chain("a &&  && b")
-        assert result == ["a", "b"]
+        assert result == [("a", False), ("b", False)]
 
     def test_single_command(self) -> None:
-        assert block_commands.split_command_chain("git status") == ["git status"]
+        assert block_commands.split_command_chain("git status") == [
+            ("git status", False)
+        ]
 
 
 class TestPresplitPatterns:
