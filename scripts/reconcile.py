@@ -5,7 +5,8 @@
 Push-only: src -> dest. Source keys win, dest-only keys are preserved.
 
 CLAUDE.md: straight copy.
-settings.json: deep merge -- lists are unioned, dicts are merged (src wins),
+settings.json.d/*.json: fragments are merged into a single settings.json,
+then deep-merged with dest -- lists are unioned, dicts are merged (src wins),
 scalars from src overwrite dest.
 """
 
@@ -49,6 +50,28 @@ def merge_settings(dest_data: dict, src_data: dict) -> dict:
             merged[key] = src_val
 
     return merged
+
+
+def load_settings_with_fragments(src_dir: Path) -> dict:
+    """Load settings.json and merge any settings.json.d/*.json fragments.
+
+    Either settings.json, settings.json.d/, or both may exist.
+    Returns empty dict only when neither is present.
+    """
+    base_path = src_dir / "settings.json"
+    d_dir = src_dir / "settings.json.d"
+
+    data: dict = {}
+    if base_path.exists():
+        data = json.loads(base_path.read_text(encoding="utf-8"))
+
+    if d_dir.is_dir():
+        for fragment_path in sorted(d_dir.glob("*.json"), key=lambda p: p.name):
+            fragment = json.loads(fragment_path.read_text(encoding="utf-8"))
+            data = merge_settings(data, fragment)
+            logger.debug("merged fragment: %s", fragment_path.name)
+
+    return data
 
 
 def reconcile_claude_md(
@@ -135,14 +158,15 @@ def reconcile_settings(
     dryrun: bool = False,
     quiet: bool = False,
 ) -> bool:
-    src = src_dir / "settings.json"
     dest = dest_dir / "settings.json"
+    has_base = (src_dir / "settings.json").exists()
+    has_fragments = (src_dir / "settings.json.d").is_dir()
 
-    if not src.exists():
-        logger.warning(f"source does not exist: {src}")
+    if not has_base and not has_fragments:
+        logger.warning("no settings.json or settings.json.d/ in %s", src_dir)
         return False
 
-    src_data = json.loads(src.read_text(encoding="utf-8"))
+    src_data = load_settings_with_fragments(src_dir)
 
     if dest.exists():
         dest_data = json.loads(dest.read_text(encoding="utf-8"))
@@ -159,13 +183,13 @@ def reconcile_settings(
     merged_text = json.dumps(merged, indent=2) + "\n"
 
     if dryrun:
-        print(f"Would merge: {src} -> {dest}")
+        print(f"Would merge: {src_dir} -> {dest}")
         print(merged_text, end="")
     else:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(merged_text, encoding="utf-8")
         if not quiet:
-            print(f"Merged: {src} -> {dest}")
+            print(f"Merged: {src_dir} -> {dest}")
 
     return True
 

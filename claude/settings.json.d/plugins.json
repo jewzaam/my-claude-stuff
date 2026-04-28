@@ -1,0 +1,42 @@
+{
+  "autoUpdatesChannel": "latest",
+  "enabledPlugins": {
+    "atlassian@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "superpowers@superpowers-dev": true
+  },
+  "extraKnownMarketplaces": {
+    "superpowers-dev": {
+      "autoUpdate": true,
+      "source": {
+        "repo": "jewzaam/superpowers",
+        "source": "github"
+      }
+    }
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bash ~/.claude/plugins/cache/jewzaam-reviews-marketplace/**)",
+      "Bash(bash ~/.claude/plugins/marketplaces/jewzaam-reviews-marketplace/**)",
+      "Bash(bash ~/source/jewzaam-reviews/**)",
+      "Bash(python ~/.claude/plugins/cache/jewzaam-reviews-marketplace/**)",
+      "Bash(python ~/.claude/plugins/marketplaces/jewzaam-reviews-marketplace/**)",
+      "Bash(python ~/source/jewzaam-reviews/**)",
+      "Bash(python3 ~/.claude/plugins/cache/jewzaam-reviews-marketplace/**)",
+      "Bash(python3 ~/.claude/plugins/marketplaces/jewzaam-reviews-marketplace/**)",
+      "Bash(python3 ~/source/jewzaam-reviews/**)",
+      "Bash(~/.claude/plugins/cache/jewzaam-reviews-marketplace/**)",
+      "Bash(~/.claude/plugins/marketplaces/jewzaam-reviews-marketplace/**)",
+      "Bash(~/source/jewzaam-reviews/**)",
+      "Read(~/.claude/plugins/cache/jewzaam-reviews-marketplace/**)",
+      "Read(~/.claude/plugins/cache/superpowers-dev/superpowers/*/skills/**)",
+      "Read(~/.claude/plugins/marketplaces/jewzaam-reviews-marketplace/**)",
+      "Read(~/source/jewzaam-reviews/**)"
+    ]
+  }
+}

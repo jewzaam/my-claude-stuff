@@ -2,19 +2,19 @@
 
 ## Overview
 
-Claude Code configuration management repo. The `claude/` directory is the source-of-truth for global Claude Code config (`CLAUDE.md`, `settings.json`). The `scripts/` directory contains hook scripts and utilities that get deployed to `~/.claude/`.
+Claude Code configuration management repo. The `claude/` directory is the source-of-truth for global Claude Code config (`CLAUDE.md`, `settings.json.d/`). The `scripts/` directory contains hook scripts and utilities that get deployed to `~/.claude/`.
 
 ## Key Commands
 
 - `make check` — run all checks (format, lint, typecheck, test, coverage)
 - `make test` — run pytest only
-- `make format` — format code with black + sort settings.json
+- `make format` — format code with black + sort settings.json.d/*.json
 
 ## Architecture
 
 - `scripts/` — Python hook scripts and utilities (the main code)
 - `claude/` — source-of-truth config deployed to `~/.claude/` via `make reconcile`
-- `claude/settings.json` — global Claude Code settings (hooks, permissions)
+- `claude/settings.json.d/` — global Claude Code settings fragments (hooks, permissions, plugins)
 - `tests/` — pytest tests with conftest.py guards that block writes to real `~/.claude/`
 
 ## Restricted Operations

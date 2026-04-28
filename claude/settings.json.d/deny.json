@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "deny": [
+      "Glob(**/*.kdbx)",
+      "Glob(**/.aws/**)",
+      "Glob(**/.env)",
+      "Glob(**/.ssh/**)",
+      "Grep(**/*.kdbx)",
+      "Grep(**/.aws/**)",
+      "Grep(**/.env)",
+      "Grep(**/.ssh/**)",
+      "Read(**/*.kdbx)",
+      "Read(**/.aws/**)",
+      "Read(**/.env)",
+      "Read(**/.ssh/**)"
+    ]
+  }
+}

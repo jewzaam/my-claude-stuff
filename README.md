@@ -4,7 +4,7 @@ Claude Code configuration and statusline scripts with cross-platform support (Li
 
 ## What's in the repo
 
-- `claude/` — Claude Code config files (`CLAUDE.md`, `settings.json`)
+- `claude/` — Claude Code config files (`CLAUDE.md`, `settings.json.d/`)
 - `scripts/` — Python scripts for statusline, session tracking, and command blocking
 - `docs/` — Design docs and reference material
 - `Makefile` — Standard targets (format, lint, typecheck, test, coverage)

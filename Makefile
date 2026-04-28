@@ -41,7 +41,10 @@ clean:  ## Remove build artifacts
 
 format: install-dev  ## Format code with black and JSON files
 	$(PYTHON) -m black scripts tests
-	jq -S 'walk(if type == "array" then sort else . end)' claude/settings.json > claude/settings.json.tmp && mv claude/settings.json.tmp claude/settings.json
+	@for f in claude/settings.json.d/*.json; do \
+		[ -f "$$f" ] || continue; \
+		jq -S 'walk(if type == "array" then sort else . end)' "$$f" > "$$f.tmp" && mv "$$f.tmp" "$$f"; \
+	done
 
 format-check: install-dev  ## Check formatting without modifying files
 	$(PYTHON) -m black --check scripts tests
