@@ -602,6 +602,7 @@
       "Read(~/.claude/skills/engineering-estimate/references/**)",
       "Read(~/.claude/skills/summarize-transcript/references/**)",
       "Read(~/Pictures/Screenshots/*)",
+      "Read(~/Pictures/Screenshots/**)",
       "Read(~/source/cited-research/**)",
       "Read(~/source/gws-cli-notes/**)",
       "Read(~/source/jewzaam-reviews/**)",
