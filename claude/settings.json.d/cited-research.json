@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /tmp/cited-research)",
+      "Read(/tmp/cited-research/*)",
+      "Read(~/.claude/skills/cited-research/references/*)",
+      "Read(~/.claude/skills/cited-research/references/**)",
+      "Read(~/source/cited-research/**)",
+      "Read(~\\.claude\\skills\\cited-research\\references\\*)",
+      "Read(~\\.claude\\skills\\cited-research\\references\\**)"
+    ]
+  }
+}

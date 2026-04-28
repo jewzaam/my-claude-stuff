@@ -12,6 +12,7 @@ from scripts.reconcile import (
     EXIT_SUCCESS,
     _adapt_hooks,
     _adapt_python_command,
+    load_settings_with_fragments,
     main,
     merge_settings,
     reconcile_claude_md,
@@ -459,6 +460,173 @@ class TestMain:
 
         captured = capsys.readouterr()
         assert captured.out == ""
+
+
+class TestLoadSettingsWithFragments:
+    def test_fragments_merged_alphabetically(self, tmp_path):
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "settings.json").write_text(json.dumps({"a": 1}))
+        d_dir = src_dir / "settings.json.d"
+        d_dir.mkdir()
+        (d_dir / "01-first.json").write_text(json.dumps({"b": 2}))
+        (d_dir / "02-second.json").write_text(json.dumps({"c": 3}))
+
+        result = load_settings_with_fragments(src_dir)
+
+        assert result == {"a": 1, "b": 2, "c": 3}
+
+    def test_fragment_lists_union_with_base(self, tmp_path):
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "settings.json").write_text(
+            json.dumps({"permissions": {"allow": ["A", "B"]}})
+        )
+        d_dir = src_dir / "settings.json.d"
+        d_dir.mkdir()
+        (d_dir / "extra.json").write_text(
+            json.dumps({"permissions": {"allow": ["B", "C"]}})
+        )
+
+        result = load_settings_with_fragments(src_dir)
+
+        assert result["permissions"]["allow"] == ["A", "B", "C"]
+
+    def test_multiple_fragments_accumulate(self, tmp_path):
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "settings.json").write_text(
+            json.dumps({"permissions": {"allow": ["A"]}})
+        )
+        d_dir = src_dir / "settings.json.d"
+        d_dir.mkdir()
+        (d_dir / "01.json").write_text(json.dumps({"permissions": {"allow": ["B"]}}))
+        (d_dir / "02.json").write_text(json.dumps({"permissions": {"allow": ["C"]}}))
+
+        result = load_settings_with_fragments(src_dir)
+
+        assert result["permissions"]["allow"] == ["A", "B", "C"]
+
+    def test_empty_d_directory(self, tmp_path):
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        base = {"key": "value"}
+        (src_dir / "settings.json").write_text(json.dumps(base))
+        (src_dir / "settings.json.d").mkdir()
+
+        result = load_settings_with_fragments(src_dir)
+
+        assert result == base
+
+    def test_missing_d_directory(self, tmp_path):
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        base = {"key": "value"}
+        (src_dir / "settings.json").write_text(json.dumps(base))
+
+        result = load_settings_with_fragments(src_dir)
+
+        assert result == base
+
+    def test_non_json_files_ignored(self, tmp_path):
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "settings.json").write_text(json.dumps({"a": 1}))
+        d_dir = src_dir / "settings.json.d"
+        d_dir.mkdir()
+        (d_dir / "notes.txt").write_text("not json")
+        (d_dir / "README.md").write_text("also not json")
+        (d_dir / "real.json").write_text(json.dumps({"b": 2}))
+
+        result = load_settings_with_fragments(src_dir)
+
+        assert result == {"a": 1, "b": 2}
+
+    def test_fragment_with_non_permission_keys(self, tmp_path):
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "settings.json").write_text(
+            json.dumps({"spinnerTipsEnabled": False})
+        )
+        d_dir = src_dir / "settings.json.d"
+        d_dir.mkdir()
+        (d_dir / "ui.json").write_text(
+            json.dumps({"spinnerTipsEnabled": True, "theme": "dark"})
+        )
+
+        result = load_settings_with_fragments(src_dir)
+
+        assert result["spinnerTipsEnabled"] is True
+        assert result["theme"] == "dark"
+
+    def test_scalar_merge_order_last_wins(self, tmp_path):
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "settings.json").write_text(json.dumps({"x": 0}))
+        d_dir = src_dir / "settings.json.d"
+        d_dir.mkdir()
+        (d_dir / "aaa.json").write_text(json.dumps({"x": 1}))
+        (d_dir / "zzz.json").write_text(json.dumps({"x": 2}))
+
+        result = load_settings_with_fragments(src_dir)
+
+        assert result["x"] == 2
+
+    def test_missing_base_and_no_d_dir_returns_empty(self, tmp_path):
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+
+        result = load_settings_with_fragments(src_dir)
+
+        assert result == {}
+
+    def test_fragments_only_no_base_file(self, tmp_path):
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        d_dir = src_dir / "settings.json.d"
+        d_dir.mkdir()
+        (d_dir / "a.json").write_text(json.dumps({"x": 1}))
+        (d_dir / "b.json").write_text(json.dumps({"permissions": {"allow": ["A"]}}))
+
+        result = load_settings_with_fragments(src_dir)
+
+        assert result["x"] == 1
+        assert result["permissions"]["allow"] == ["A"]
+
+    def test_reconcile_with_fragments_only(self, src_dest_dirs):
+        src_dir, dest_dir = src_dest_dirs
+        d_dir = src_dir / "settings.json.d"
+        d_dir.mkdir()
+        (d_dir / "config.json").write_text(
+            json.dumps({"permissions": {"allow": ["X"]}})
+        )
+        (dest_dir / "settings.json").write_text(json.dumps({}))
+
+        changed = reconcile_settings(src_dir, dest_dir)
+
+        assert changed is True
+        result = json.loads((dest_dir / "settings.json").read_text())
+        assert "X" in result["permissions"]["allow"]
+
+    def test_integration_fragments_flow_through_reconcile(self, src_dest_dirs):
+        src_dir, dest_dir = src_dest_dirs
+        (src_dir / "settings.json").write_text(
+            json.dumps({"permissions": {"allow": ["A"]}})
+        )
+        d_dir = src_dir / "settings.json.d"
+        d_dir.mkdir()
+        (d_dir / "extra.json").write_text(json.dumps({"permissions": {"allow": ["B"]}}))
+        (dest_dir / "settings.json").write_text(
+            json.dumps({"permissions": {"allow": ["Z"]}})
+        )
+
+        changed = reconcile_settings(src_dir, dest_dir)
+
+        assert changed is True
+        result = json.loads((dest_dir / "settings.json").read_text())
+        assert "Z" in result["permissions"]["allow"]
+        assert "A" in result["permissions"]["allow"]
+        assert "B" in result["permissions"]["allow"]
 
 
 class TestConfTestGuard:

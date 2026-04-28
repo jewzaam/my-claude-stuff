@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-This repo uses Claude Code hooks to block destructive commands and log prompts/responses/questions. All hooks are configured in `claude/settings.json` and deployed via `make reconcile`.
+This repo uses Claude Code hooks to block destructive commands and log prompts/responses/questions. All hooks are configured in `claude/settings.json.d/hooks.json` and deployed via `make reconcile`.
 
 ## What Are Hooks
 
@@ -12,7 +12,7 @@ Claude Code hooks are shell commands that execute in response to lifecycle event
 - **Exit 2** to block the event (PreToolUse only)
 - Write to stdout/stderr for feedback to the user
 
-Configuration lives in `claude/settings.json` under the `hooks` key.
+Configuration lives in `claude/settings.json.d/hooks.json`.
 
 ## Hook Events Used
 
@@ -79,6 +79,6 @@ Blocks destructive shell commands before execution. See `docs/block-commands-des
 ## Adding New Hooks
 
 1. Create script in `scripts/`
-2. Add hook entry to `claude/settings.json` under the appropriate event
+2. Add hook entry to `claude/settings.json.d/hooks.json` under the appropriate event
 3. Add tests in `tests/`
 4. Run `make reconcile` to deploy to `~/.claude/`
