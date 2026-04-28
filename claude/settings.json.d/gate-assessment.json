@@ -1,7 +1,27 @@
 {
   "permissions": {
     "allow": [
-      "Read(~/.claude/skills/gate-assessment/reference**)"
+      "Bash(bash ~/.claude/skills/gate-assessment/scripts/bootstrap_tmp.sh)",
+      "Bash(bash ~/.claude/skills/gate-assessment/scripts/run_fetch_jira.sh *)",
+      "Bash(python3 ~/.claude/skills/gate-assessment/scripts/write_feature.py *)",
+      "Bash(python ~/.claude/skills/gate-assessment/scripts/write_feature.py *)",
+      "Bash(python3 ~/.claude/skills/gate-assessment/scripts/write_measure.py *)",
+      "Bash(python ~/.claude/skills/gate-assessment/scripts/write_measure.py *)",
+      "Bash(python3 ~/.claude/skills/gate-assessment/scripts/consolidate.py *)",
+      "Bash(python ~/.claude/skills/gate-assessment/scripts/consolidate.py *)",
+      "Bash(python3 ~/.claude/skills/gate-assessment/scripts/generate_report.py *)",
+      "Bash(python ~/.claude/skills/gate-assessment/scripts/generate_report.py *)",
+      "Read(~/.claude/skills/gate-assessment/references/**)",
+      "Glob(~/.claude/skills/gate-assessment/references/**)",
+      "Grep(~/.claude/skills/gate-assessment/references/**)",
+      "Read(~\\.claude\\skills\\gate-assessment\\references\\**)",
+      "Glob(~\\.claude\\skills\\gate-assessment\\references\\**)",
+      "Grep(~\\.claude\\skills\\gate-assessment\\references\\**)"
+    ],
+    "deny": [
+      "Read(~/.config/claude-skill-gate-assessment/.env)",
+      "Glob(~/.config/claude-skill-gate-assessment/.env)",
+      "Grep(~/.config/claude-skill-gate-assessment/.env)"
     ]
   }
 }
