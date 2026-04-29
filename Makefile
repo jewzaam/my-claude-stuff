@@ -1,7 +1,12 @@
-.PHONY: install install-dev install-no-deps uninstall clean format format-check lint typecheck test test-verbose coverage default check help migrate reconcile
+.PHONY: install install-dev install-no-deps uninstall clean format test-format test-lint test-typecheck test-unit test-verbose test-coverage check help migrate reconcile
+
+.DEFAULT_GOAL := check
 
 VENV_DIR ?= .venv
-DATA_DIR := $(HOME)/.claude/my-claude-stuff-data
+# Normalize $(HOME) to forward slashes — on Windows it contains backslashes
+# that the shell interprets as escape characters. See ~/source/standards/python/shared-venv.md.
+HOME_DIR := $(subst \,/,$(HOME))
+DATA_DIR := $(HOME_DIR)/.claude/my-claude-stuff-data
 ifeq ($(OS),Windows_NT)
     PYTHON ?= $(VENV_DIR)/Scripts/python.exe
 else
@@ -15,9 +20,7 @@ PY_SYS ?= python3
 
 $(info venv: $(VENV_DIR))
 
-default: format lint typecheck test coverage  ## Run all checks (format, lint, typecheck, test, coverage)
-
-check: default  ## Alias for default
+check: test-format test-lint test-typecheck test-unit test-coverage  ## Run full quality gate (default)
 
 $(PYTHON):
 	$(PY_SYS) -m venv $(VENV_DIR)
@@ -46,38 +49,38 @@ format: install-dev  ## Format code with black and JSON files
 		jq -S 'walk(if type == "array" then sort else . end)' "$$f" > "$$f.tmp" && mv "$$f.tmp" "$$f"; \
 	done
 
-format-check: install-dev  ## Check formatting without modifying files
+test-format: install-dev  ## Check formatting without modifying files
 	$(PYTHON) -m black --check scripts tests
 
-lint: install-dev  ## Lint with flake8
+test-lint: install-dev  ## Lint with flake8
 	$(PYTHON) -m flake8 --max-line-length=88 --extend-ignore=E203,W503 scripts tests
 
-typecheck: install-dev  ## Type check with mypy
+test-typecheck: install-dev  ## Type check with mypy
 	$(PYTHON) -m mypy scripts
 
-test: install-dev  ## Run pytest
+test-unit: install-dev  ## Run pytest
 	$(PYTHON) -m pytest
 
 test-verbose: install-dev  ## Run pytest with verbose output
 	$(PYTHON) -m pytest -v
 
-coverage: install-dev  ## Run pytest with coverage
-	$(PYTHON) -m pytest --cov=scripts --cov-report=term
+test-coverage: install-dev  ## Run pytest with coverage
+	$(PYTHON) -m pytest --cov=scripts --cov-report=term --cov-fail-under=80
 
 migrate:  ## Merge legacy data dirs into my-claude-stuff-data/
 	@mkdir -p $(DATA_DIR)
 	@for dir in session-tracker prompt-log statusline-cache; do \
-		if [ -d "$(HOME)/.claude/$$dir" ]; then \
+		if [ -d "$(HOME_DIR)/.claude/$$dir" ]; then \
 			echo "Migrating $$dir -> $(DATA_DIR)/$$dir"; \
-			cp -rn "$(HOME)/.claude/$$dir/." "$(DATA_DIR)/$$dir/" 2>/dev/null || \
-			cp -r --no-clobber "$(HOME)/.claude/$$dir/." "$(DATA_DIR)/$$dir/" 2>/dev/null || \
-			cp -r "$(HOME)/.claude/$$dir/." "$(DATA_DIR)/$$dir/"; \
-			rm -rf "$(HOME)/.claude/$$dir"; \
+			cp -rn "$(HOME_DIR)/.claude/$$dir/." "$(DATA_DIR)/$$dir/" 2>/dev/null || \
+			cp -r --no-clobber "$(HOME_DIR)/.claude/$$dir/." "$(DATA_DIR)/$$dir/" 2>/dev/null || \
+			cp -r "$(HOME_DIR)/.claude/$$dir/." "$(DATA_DIR)/$$dir/"; \
+			rm -rf "$(HOME_DIR)/.claude/$$dir"; \
 		fi; \
 	done
 
 reconcile: migrate  ## Push claude/ config to ~/.claude/
-	$(PYTHON) scripts/reconcile.py claude/ $(HOME)/.claude/
+	$(PYTHON) scripts/reconcile.py claude/ $(HOME_DIR)/.claude/
 
 help:  ## Show this help message
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'

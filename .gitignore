@@ -14,6 +14,10 @@ htmlcov/
 # Type checking
 .mypy_cache/
 
+# Mutation testing
+mutants/
+.mutmut-cache
+
 # IDE
 .vscode/
 .idea/

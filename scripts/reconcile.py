@@ -256,7 +256,9 @@ def main(argv=None):
         level = logging.DEBUG
     elif not args.quiet:
         level = logging.INFO
-    logging.basicConfig(level=level, format="%(levelname)s: %(message)s")
+    logging.basicConfig(
+        level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
 
     if not args.src.exists():
         logger.error(f"source dir not found: {args.src}")

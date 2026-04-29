@@ -1,8 +1,13 @@
 # my-claude-stuff
 
+[![test](https://github.com/jewzaam/my-claude-stuff/actions/workflows/test.yml/badge.svg)](https://github.com/jewzaam/my-claude-stuff/actions/workflows/test.yml)
+[![quality](https://github.com/jewzaam/my-claude-stuff/actions/workflows/quality.yml/badge.svg)](https://github.com/jewzaam/my-claude-stuff/actions/workflows/quality.yml)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 Claude Code configuration and statusline scripts with cross-platform support (Linux/Windows).
 
-## What's in the repo
+## Overview
 
 - `claude/` — Claude Code config files (`CLAUDE.md`, `settings.json.d/`)
 - `scripts/` — Python scripts for statusline, session tracking, and command blocking
