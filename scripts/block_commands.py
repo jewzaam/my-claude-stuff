@@ -38,7 +38,8 @@ Blocked categories:
   Publishing: npm publish, twine upload, gem push, cargo publish,
               dotnet nuget push
   Network: nc/netcat/ncat, scp, rsync, ftp/sftp, telnet, ssh, socat
-  Workflow: cd to cwd — cd <path> && <cmd> where path == cwd (context-aware)
+  Workflow: cd to cwd — cd <path> && <cmd> where path == cwd (context-aware),
+            cd && git — use git -C instead of cd <dir> && git <subcmd>
   Cross-platform: curl/wget piped to shell/interpreter (presplit)
               sh, bash, dash, ksh, csh, tcsh, zsh, fish,
               python, python3, pythonw, perl, ruby, node
@@ -119,6 +120,11 @@ PRESPLIT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(rf"\|\s*{_PATH}(?:{_PIPE_SHELLS}){_EXE}\b"),
         "pipe to runtime (inline execution — file a missing test instead)",
+    ),
+    # cd <dir> && git <subcmd>: use git -C <dir> <subcmd> instead
+    (
+        re.compile(r"\bcd\s+\S+\s*&&\s*" rf"{_ENV}{_PATH}git{_EXE}\b"),
+        "cd && git (use git -C <dir> instead)",
     ),
 ]
 

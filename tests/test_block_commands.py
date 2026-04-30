@@ -1641,6 +1641,40 @@ class TestPresplitPatterns:
         assert block_commands.check_command(command) is None
 
 
+class TestCdAndGitBlocked:
+    """Block cd <dir> && git — use git -C <dir> instead."""
+
+    _MSG = "cd && git (use git -C <dir> instead)"
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "cd /other/repo && git log",
+            "cd ../sibling && git status",
+            "cd ~/source/project && git diff --staged",
+            "cd subdir && git branch -a",
+            "cd /tmp/repo && git rev-parse HEAD",
+        ],
+    )
+    def test_cd_and_git_blocked(self, command: str) -> None:
+        assert block_commands.check_command(command) == self._MSG
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # cd && non-git — not blocked by this rule
+            "cd /tmp && ls",
+            # git -C is the correct pattern
+            "git -C /other/repo log",
+            # No cd at all
+            "git diff --staged",
+        ],
+    )
+    def test_cd_without_git_allowed(self, command: str) -> None:
+        result = block_commands.check_command(command)
+        assert result != self._MSG
+
+
 class TestCdToCwd:
     """Block cd <path> && <cmd> only when path resolves to cwd."""
 
