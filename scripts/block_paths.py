@@ -10,6 +10,7 @@ Exits 2 to block, 0 to allow.
 
 Blocked directories: ~/.ssh, ~/.aws, ~/.kube, ~/.ocm
 Blocked files: ~/.claude/*credentials*
+Blocked URIs: file:// in WebFetch (use Read tool instead)
 """
 
 import json
@@ -141,6 +142,15 @@ def main() -> None:
         if command and _has_command_chaining(command):
             print(
                 "BLOCKED: semicolon command chaining is not allowed",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+
+    if tool_name == "WebFetch":
+        url = tool_input.get("url", "")
+        if url.startswith("file://"):
+            print(
+                "BLOCKED: file:// URI is not allowed (use the Read tool)",
                 file=sys.stderr,
             )
             sys.exit(2)
