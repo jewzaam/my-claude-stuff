@@ -11,7 +11,10 @@
       "Bash(mkdir -p ~/.local/share/cited-research-data/*)",
       "Bash(mkdir -p */.local/share/cited-research-data/*)",
       "Read(~/.local/share/cited-research-data/**)",
-      "Read(*/.local/share/cited-research-data/**)"
+      "Read(*/.local/share/cited-research-data/**)",
+      "Bash(bash ~/.claude/skills/cited-research/scripts/* *)",
+      "Bash(python ~/.claude/skills/cited-research/scripts/* *)",
+      "Bash(python3 ~/.claude/skills/cited-research/scripts/* *)"
     ]
   }
 }
