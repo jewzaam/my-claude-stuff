@@ -314,6 +314,56 @@ class TestCommandChaining:
         block_paths.main()  # should not raise
 
 
+class TestFileUriBlocked:
+    """Block file:// URIs in WebFetch — agents should use Read tool."""
+
+    def test_webfetch_file_uri_blocked(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        data = {
+            "tool_name": "WebFetch",
+            "tool_input": {"url": "file:///home/user/secret.txt", "prompt": "read it"},
+            "cwd": "/tmp",
+        }
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        with pytest.raises(SystemExit) as exc_info:
+            block_paths.main()
+        assert exc_info.value.code == 2
+
+    def test_webfetch_file_uri_message(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        data = {
+            "tool_name": "WebFetch",
+            "tool_input": {"url": "file:///etc/passwd", "prompt": "read it"},
+            "cwd": "/tmp",
+        }
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        with pytest.raises(SystemExit):
+            block_paths.main()
+        captured = capsys.readouterr()
+        assert "file://" in captured.err
+        assert "Read tool" in captured.err
+
+    def test_webfetch_https_allowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        data = {
+            "tool_name": "WebFetch",
+            "tool_input": {"url": "https://example.com", "prompt": "summarize"},
+            "cwd": "/tmp",
+        }
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        block_paths.main()  # should not raise
+
+    def test_webfetch_no_url_allowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        data = {
+            "tool_name": "WebFetch",
+            "tool_input": {"prompt": "summarize"},
+            "cwd": "/tmp",
+        }
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(data)))
+        block_paths.main()  # should not raise
+
+
 class TestIntegration:
     """End-to-end tests for main() with stdin simulation."""
 
