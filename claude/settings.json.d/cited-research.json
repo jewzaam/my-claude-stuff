@@ -9,7 +9,9 @@
       "Read(~\\.claude\\skills\\cited-research\\references\\*)",
       "Read(~\\.claude\\skills\\cited-research\\references\\**)",
       "Bash(mkdir -p ~/.local/share/cited-research-data/*)",
-      "Read(~/.local/share/cited-research-data/**)"
+      "Bash(mkdir -p */.local/share/cited-research-data/*)",
+      "Read(~/.local/share/cited-research-data/**)",
+      "Read(*/.local/share/cited-research-data/**)"
     ]
   }
 }
