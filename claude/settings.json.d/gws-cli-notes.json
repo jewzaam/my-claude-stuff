@@ -1,11 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python ~/source/gws-cli-notes/scripts/*)",
       "Bash(python ~/source/gws-cli-notes/scripts/* *)",
+      "Bash(python ~/source/gws-cli-notes/scripts/*)",
       "Bash(python ~/source/gws-cli-notes/scripts/**)",
-      "Bash(python3 ~/source/gws-cli-notes/scripts/*)",
       "Bash(python3 ~/source/gws-cli-notes/scripts/* *)",
+      "Bash(python3 ~/source/gws-cli-notes/scripts/*)",
       "Bash(python3 ~/source/gws-cli-notes/scripts/**)"
     ]
   }

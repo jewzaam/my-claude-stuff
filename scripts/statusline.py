@@ -27,8 +27,8 @@ import logging.handlers
 import os
 import platform
 import sys
+import time
 import urllib.request
-from datetime import datetime, timezone
 from pathlib import Path
 
 # Ensure scripts/ parent is on sys.path so `from scripts.config` works
@@ -136,31 +136,33 @@ def colorize_pct(pct):
 
 
 def format_remaining(resets_at):
-    """Parse resets_at ISO timestamp, return compact time remaining."""
-    if not resets_at:
+    """Return compact time remaining until resets_at (Unix epoch seconds)."""
+    if resets_at is None:
         return None
     try:
-        reset_dt = datetime.fromisoformat(resets_at)
-        now = datetime.now(timezone.utc)
-        remaining = int((reset_dt - now).total_seconds())
-        if remaining <= 0:
-            return "0s"
-        return format_duration(remaining)
-    except (ValueError, OverflowError):
+        remaining = int(float(resets_at) - time.time())
+    except (TypeError, ValueError):
         return None
+    if remaining <= 0:
+        return "0s"
+    return format_duration(remaining)
 
 
 _AGENTPULSE_CONFIG = Path.home() / ".claude" / "agentpulse" / "config.json"
 
+# Snapshots older than this are flagged with a (!age) marker on the bar.
+# Server fetch TTL is ~120s; 5min gives a comfortable margin.
+_STALE_THRESHOLD_SECONDS = 300
+
 
 def get_usage():
-    """Fetch usage data from agentpulse GET /api/v1/limits.
+    """Fetch the latest api-limits row from agentpulse /api/v2/log/api-limits.
 
     Returns (usage_dict, age_seconds, stale) or (None, 0, False).
     Agentpulse owns OAuth, caching, and backoff — statusline is a pure
-    display client.  The response has buckets (five_hour, seven_day, etc.)
-    and metadata (age_seconds, stale) at the top level; we pass the whole
-    dict as usage_dict so main() can read buckets directly.
+    display client. The v2 row is reshaped into a nested dict so main()
+    can read buckets uniformly. resets_at values are floats (Unix epoch
+    seconds). extra_usage lives in raw_response and is parsed when present.
     """
     try:
         if not _AGENTPULSE_CONFIG.exists():
@@ -170,15 +172,38 @@ def get_usage():
             return None, 0, False
         host = cfg.get("host", "127.0.0.1")
         port = cfg.get("port", 17385)
-        url = f"http://{host}:{port}/api/v1/limits"
+        url = f"http://{host}:{port}/api/v2/log/api-limits?order=desc&limit=1"
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req, timeout=2) as resp:
-            data = json.loads(resp.read())
-            return (
-                data,
-                data.get("age_seconds", 0),
-                data.get("stale", False),
-            )
+            rows = json.loads(resp.read())
+        if not rows:
+            return None, 0, False
+        row = rows[0]
+        usage = {
+            "five_hour": {
+                "utilization": row.get("five_hour_utilization"),
+                "resets_at": row.get("five_hour_resets_at"),
+            },
+            "seven_day": {
+                "utilization": row.get("seven_day_utilization"),
+                "resets_at": row.get("seven_day_resets_at"),
+            },
+        }
+        raw_response = row.get("raw_response")
+        if raw_response:
+            try:
+                extra_usage = json.loads(raw_response).get("extra_usage")
+                if extra_usage:
+                    usage["extra_usage"] = extra_usage
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                pass
+        received_at = row.get("received_at")
+        if received_at:
+            age_seconds = max(0, int(time.time() - float(received_at)))
+        else:
+            age_seconds = 0
+        stale = age_seconds > _STALE_THRESHOLD_SECONDS
+        return usage, age_seconds, stale
     except Exception:
         return None, 0, False
 

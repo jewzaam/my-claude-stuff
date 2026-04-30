@@ -9,26 +9,62 @@ config files are ever read.
 import io
 import json
 import re
+import time
 
 import pytest
 
 from scripts import statusline
 
+# Far-future epoch seconds so format_remaining yields a positive duration in
+# tests that don't care about the exact value.
+_FAR_FUTURE = 4102444800.0  # 2100-01-01 UTC
+
 SAMPLE_USAGE_RESPONSE = {
     "five_hour": {
         "utilization": 7.0,
-        "resets_at": "2026-03-17T07:00:00+00:00",
+        "resets_at": _FAR_FUTURE,
     },
     "seven_day": {
         "utilization": 4.0,
-        "resets_at": "2026-03-22T17:00:00+00:00",
+        "resets_at": _FAR_FUTURE,
     },
+}
+
+# v2 row shape returned by GET /api/v2/log/api-limits?order=desc&limit=1
+SAMPLE_V2_ROW = {
+    "id": 27,
+    "platform": "claude",
+    "received_at": _FAR_FUTURE,  # overridden per-test where age matters
+    "received_by": "limits-fetcher",
+    "five_hour_utilization": 7.0,
+    "five_hour_resets_at": _FAR_FUTURE,
+    "seven_day_utilization": 4.0,
+    "seven_day_resets_at": _FAR_FUTURE,
+    "raw_response": None,
 }
 
 SAMPLE_STDIN = {
     "model": {"display_name": "Opus 4.6"},
     "context_window": {"used_percentage": 12},
 }
+
+
+def _mock_urlopen(monkeypatch, body):
+    """Stub urlopen to return ``body`` (bytes) once."""
+    mock_resp = io.BytesIO(body)
+
+    class FakeContext:
+        def __enter__(self):
+            return mock_resp
+
+        def __exit__(self, *a):
+            pass
+
+    monkeypatch.setattr(
+        statusline.urllib.request,
+        "urlopen",
+        lambda req, timeout=None: FakeContext(),
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -105,31 +141,37 @@ class TestFormatRemaining:
     def test_none_input(self):
         assert statusline.format_remaining(None) is None
 
-    def test_empty_string(self):
-        assert statusline.format_remaining("") is None
+    def test_invalid_type(self):
+        assert statusline.format_remaining("not-a-number") is None
 
-    def test_invalid_timestamp(self):
-        assert statusline.format_remaining("not-a-date") is None
+    def test_past_returns_zero(self):
+        # Year 2000 — far in the past
+        assert statusline.format_remaining(946684800.0) == "0s"
 
-    def test_past_returns_zero(self, monkeypatch):
-        assert statusline.format_remaining("2020-01-01T00:00:00+00:00") == "0s"
+    def test_zero_returns_zero(self):
+        # Treated as past relative to "now"
+        assert statusline.format_remaining(0) == "0s"
 
-    def test_future_timestamp(self, monkeypatch):
-        from datetime import datetime, timezone, timedelta
-
-        future = datetime.now(timezone.utc) + timedelta(hours=3, minutes=4)
-        result = statusline.format_remaining(future.isoformat())
+    def test_future_timestamp(self):
+        future = time.time() + 3 * 3600 + 4 * 60
+        result = statusline.format_remaining(future)
         assert result.startswith("3h")
 
-    def test_days_remaining(self, monkeypatch):
-        from datetime import datetime, timezone, timedelta
-
-        future = datetime.now(timezone.utc) + timedelta(days=4, hours=12)
-        result = statusline.format_remaining(future.isoformat())
+    def test_days_remaining(self):
+        future = time.time() + 4 * 86400 + 12 * 3600
+        result = statusline.format_remaining(future)
         assert result.startswith("4d")
 
 
 # --- get_usage (agentpulse) ---
+
+
+def _write_config(config_file, **overrides):
+    """Write an agentpulse config file with sensible defaults."""
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+    cfg = {"host": "127.0.0.1", "port": 17385}
+    cfg.update(overrides)
+    config_file.write_text(json.dumps(cfg), encoding="utf-8")
 
 
 class TestGetUsage:
@@ -141,84 +183,90 @@ class TestGetUsage:
         assert stale is False
 
     def test_success(self, isolate_paths, monkeypatch):
-        """Agentpulse returns usage data successfully."""
-        tmp_path, config_file = isolate_paths
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(
-            json.dumps({"host": "127.0.0.1", "port": 17385}),
-            encoding="utf-8",
-        )
-        # /api/v1/limits returns buckets + metadata at the top level
-        resp_data = {
-            **SAMPLE_USAGE_RESPONSE,
-            "available": True,
-            "age_seconds": 45,
-            "stale": False,
-        }
-        resp_body = json.dumps(resp_data).encode()
-        mock_resp = io.BytesIO(resp_body)
+        """Agentpulse returns the latest v2 row; reshaped into bucket dict."""
+        _, config_file = isolate_paths
+        _write_config(config_file)
+        row = {**SAMPLE_V2_ROW, "received_at": time.time() - 45}
+        _mock_urlopen(monkeypatch, json.dumps([row]).encode())
 
-        class FakeContext:
-            def __enter__(self):
-                return mock_resp
-
-            def __exit__(self, *a):
-                pass
-
-        monkeypatch.setattr(
-            statusline.urllib.request,
-            "urlopen",
-            lambda req, timeout=None: FakeContext(),
-        )
         usage, age, stale = statusline.get_usage()
-        # usage is the full response dict; buckets are at top level
-        assert usage["five_hour"] == SAMPLE_USAGE_RESPONSE["five_hour"]
-        assert usage["seven_day"] == SAMPLE_USAGE_RESPONSE["seven_day"]
-        assert age == 45
+        assert usage["five_hour"] == {
+            "utilization": 7.0,
+            "resets_at": _FAR_FUTURE,
+        }
+        assert usage["seven_day"] == {
+            "utilization": 4.0,
+            "resets_at": _FAR_FUTURE,
+        }
+        assert "extra_usage" not in usage
+        # age is now computed from received_at, allow a tiny margin
+        assert 40 <= age <= 50
         assert stale is False
 
-    def test_stale_response(self, isolate_paths, monkeypatch):
-        """Agentpulse returns stale cached data."""
-        tmp_path, config_file = isolate_paths
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(
-            json.dumps({"host": "127.0.0.1", "port": 17385}),
-            encoding="utf-8",
-        )
-        resp_data = {
-            **SAMPLE_USAGE_RESPONSE,
-            "available": True,
-            "age_seconds": 600,
-            "stale": True,
-        }
-        resp_body = json.dumps(resp_data).encode()
-        mock_resp = io.BytesIO(resp_body)
+    def test_stale_when_received_at_old(self, isolate_paths, monkeypatch):
+        """received_at older than threshold → stale=True."""
+        _, config_file = isolate_paths
+        _write_config(config_file)
+        row = {**SAMPLE_V2_ROW, "received_at": time.time() - 600}
+        _mock_urlopen(monkeypatch, json.dumps([row]).encode())
 
-        class FakeContext:
-            def __enter__(self):
-                return mock_resp
-
-            def __exit__(self, *a):
-                pass
-
-        monkeypatch.setattr(
-            statusline.urllib.request,
-            "urlopen",
-            lambda req, timeout=None: FakeContext(),
-        )
         usage, age, stale = statusline.get_usage()
-        assert usage["five_hour"] == SAMPLE_USAGE_RESPONSE["five_hour"]
-        assert age == 600
+        assert usage is not None
+        assert age >= 595
         assert stale is True
+
+    def test_extra_usage_parsed_from_raw_response(self, isolate_paths, monkeypatch):
+        """extra_usage now lives in raw_response (JSON string)."""
+        _, config_file = isolate_paths
+        _write_config(config_file)
+        raw = {
+            "extra_usage": {
+                "is_enabled": True,
+                "monthly_limit_usd": 50.0,
+                "used_credits_usd": 15.17,
+                "utilization": 30.34,
+            }
+        }
+        row = {
+            **SAMPLE_V2_ROW,
+            "received_at": time.time(),
+            "raw_response": json.dumps(raw),
+        }
+        _mock_urlopen(monkeypatch, json.dumps([row]).encode())
+
+        usage, _, _ = statusline.get_usage()
+        assert usage["extra_usage"] == raw["extra_usage"]
+
+    def test_malformed_raw_response_skipped(self, isolate_paths, monkeypatch):
+        """Bad JSON in raw_response is swallowed; rest of usage still returns."""
+        _, config_file = isolate_paths
+        _write_config(config_file)
+        row = {
+            **SAMPLE_V2_ROW,
+            "received_at": time.time(),
+            "raw_response": "{not json",
+        }
+        _mock_urlopen(monkeypatch, json.dumps([row]).encode())
+
+        usage, _, _ = statusline.get_usage()
+        assert usage is not None
+        assert "extra_usage" not in usage
+
+    def test_empty_list_returns_none(self, isolate_paths, monkeypatch):
+        """No rows yet (e.g. fresh agentpulse) → no usage data."""
+        _, config_file = isolate_paths
+        _write_config(config_file)
+        _mock_urlopen(monkeypatch, b"[]")
+
+        usage, age, stale = statusline.get_usage()
+        assert usage is None
+        assert age == 0
+        assert stale is False
 
     def test_network_error_returns_none(self, isolate_paths, monkeypatch):
         """Agentpulse unreachable → no usage data."""
-        tmp_path, config_file = isolate_paths
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(
-            json.dumps({"host": "127.0.0.1", "port": 17385}),
-            encoding="utf-8",
-        )
+        _, config_file = isolate_paths
+        _write_config(config_file)
         monkeypatch.setattr(
             statusline.urllib.request,
             "urlopen",
@@ -233,26 +281,10 @@ class TestGetUsage:
 
     def test_malformed_json_returns_none(self, isolate_paths, monkeypatch):
         """Agentpulse returns invalid JSON → no usage data."""
-        tmp_path, config_file = isolate_paths
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(
-            json.dumps({"host": "127.0.0.1", "port": 17385}),
-            encoding="utf-8",
-        )
-        mock_resp = io.BytesIO(b"{bad json")
+        _, config_file = isolate_paths
+        _write_config(config_file)
+        _mock_urlopen(monkeypatch, b"{bad json")
 
-        class FakeContext:
-            def __enter__(self):
-                return mock_resp
-
-            def __exit__(self, *a):
-                pass
-
-        monkeypatch.setattr(
-            statusline.urllib.request,
-            "urlopen",
-            lambda req, timeout=None: FakeContext(),
-        )
         usage, age, stale = statusline.get_usage()
         assert usage is None
         assert age == 0
@@ -268,44 +300,22 @@ class TestGetUsage:
         assert age == 0
         assert stale is False
 
-    def test_defaults_age_and_stale(self, isolate_paths, monkeypatch):
-        """Response missing age_seconds/stale uses defaults."""
-        tmp_path, config_file = isolate_paths
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(
-            json.dumps({"host": "127.0.0.1", "port": 17385}),
-            encoding="utf-8",
-        )
-        # Response with buckets but no age_seconds/stale metadata
-        resp_body = json.dumps(SAMPLE_USAGE_RESPONSE).encode()
-        mock_resp = io.BytesIO(resp_body)
+    def test_missing_received_at_defaults_age_zero(self, isolate_paths, monkeypatch):
+        """Row without received_at → age=0, stale=False."""
+        _, config_file = isolate_paths
+        _write_config(config_file)
+        row = {**SAMPLE_V2_ROW, "received_at": None}
+        _mock_urlopen(monkeypatch, json.dumps([row]).encode())
 
-        class FakeContext:
-            def __enter__(self):
-                return mock_resp
-
-            def __exit__(self, *a):
-                pass
-
-        monkeypatch.setattr(
-            statusline.urllib.request,
-            "urlopen",
-            lambda req, timeout=None: FakeContext(),
-        )
         usage, age, stale = statusline.get_usage()
-        assert usage["five_hour"] == SAMPLE_USAGE_RESPONSE["five_hour"]
+        assert usage is not None
         assert age == 0
         assert stale is False
 
     def test_fetch_limits_disabled_skips_request(self, isolate_paths, monkeypatch):
         """fetch_limits=false in config → skip HTTP call, return None."""
         _, config_file = isolate_paths
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(
-            json.dumps({"host": "127.0.0.1", "port": 17385, "fetch_limits": False}),
-            encoding="utf-8",
-        )
-        # urlopen should never be called; blow up if it is
+        _write_config(config_file, fetch_limits=False)
         monkeypatch.setattr(
             statusline.urllib.request,
             "urlopen",
@@ -318,14 +328,10 @@ class TestGetUsage:
         assert age == 0
         assert stale is False
 
-    def test_uses_config_host_port(self, isolate_paths, monkeypatch):
-        """Reads host/port from config file."""
-        tmp_path, config_file = isolate_paths
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(
-            json.dumps({"host": "10.0.0.1", "port": 9999}),
-            encoding="utf-8",
-        )
+    def test_uses_config_host_port_and_v2_path(self, isolate_paths, monkeypatch):
+        """Reads host/port from config; hits /api/v2/log/api-limits."""
+        _, config_file = isolate_paths
+        _write_config(config_file, host="10.0.0.1", port=9999)
 
         captured_urls = []
 
@@ -335,7 +341,9 @@ class TestGetUsage:
 
         monkeypatch.setattr(statusline.urllib.request, "urlopen", fake_urlopen)
         statusline.get_usage()
-        assert captured_urls == ["http://10.0.0.1:9999/api/v1/limits"]
+        assert captured_urls == [
+            "http://10.0.0.1:9999/api/v2/log/api-limits?order=desc&limit=1"
+        ]
 
 
 # --- main ---
@@ -380,14 +388,8 @@ class TestMain:
         assert "Context: 12%" in output
 
     def test_with_usage_fresh(self, monkeypatch, capsys):
-        from datetime import datetime, timezone, timedelta
-
-        future_5h = (
-            datetime.now(timezone.utc) + timedelta(hours=3, minutes=4)
-        ).isoformat()
-        future_1w = (
-            datetime.now(timezone.utc) + timedelta(days=4, hours=12)
-        ).isoformat()
+        future_5h = time.time() + 3 * 3600 + 4 * 60
+        future_1w = time.time() + 4 * 86400 + 12 * 3600
         usage = {
             "five_hour": {"utilization": 7.0, "resets_at": future_5h},
             "seven_day": {"utilization": 4.0, "resets_at": future_1w},
