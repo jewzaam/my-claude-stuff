@@ -1177,6 +1177,35 @@ class TestCheckCommand:
         assert block_commands.check_command(cmd) == "git push"
 
 
+class TestFileUriBlocked:
+    """Block file:// URI scheme — agents should use Read tool."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "curl file:///etc/passwd",
+            "cat file:///tmp/secret.txt",
+            "xdg-open file:///home/user/doc.pdf",
+            "python3 -c 'open(\"file:///etc/hosts\")'",
+        ],
+    )
+    def test_file_uri_blocked(self, command: str) -> None:
+        assert (
+            block_commands.check_command(command)
+            == "file:// URI (use the built-in Read tool)"
+        )
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "curl https://example.com/file",
+            "ls files/",
+        ],
+    )
+    def test_non_file_uri_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
 class TestInlineExecutionBlocks:
     """Block inline code execution for language runtimes."""
 

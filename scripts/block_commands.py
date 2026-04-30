@@ -299,6 +299,8 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # PowerShell process/service cmdlets
     (re.compile(r"\bStop-Service\b", re.IGNORECASE), "Stop-Service"),
     (re.compile(r"\bStop-Process\b", re.IGNORECASE), "Stop-Process"),
+    # file:// URI scheme — agents should use the Read tool for local files
+    (re.compile(r"\bfile://"), "file:// URI (use the built-in Read tool)"),
     # Dedicated tools: block Bash find — use built-in Glob tool.
     # grep/rg are in LEADING_ONLY_PATTERNS because they are still useful as
     # downstream filters on another command's stdout (the built-in Grep tool

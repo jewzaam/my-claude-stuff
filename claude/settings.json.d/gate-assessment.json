@@ -11,17 +11,17 @@
       "Bash(python3 ~/.claude/skills/gate-assessment/scripts/generate_report.py *)",
       "Bash(python3 ~/.claude/skills/gate-assessment/scripts/write_feature.py *)",
       "Bash(python3 ~/.claude/skills/gate-assessment/scripts/write_measure.py *)",
-      "Glob(~/.claude/skills/gate-assessment/references/**)",
+      "Glob(*/.claude/skills/gate-assessment/references/**)",
       "Glob(~\\.claude\\skills\\gate-assessment\\references\\**)",
-      "Grep(~/.claude/skills/gate-assessment/references/**)",
+      "Grep(*/.claude/skills/gate-assessment/references/**)",
       "Grep(~\\.claude\\skills\\gate-assessment\\references\\**)",
-      "Read(~/.claude/skills/gate-assessment/references/**)",
+      "Read(*/.claude/skills/gate-assessment/references/**)",
       "Read(~\\.claude\\skills\\gate-assessment\\references\\**)"
     ],
     "deny": [
-      "Glob(~/.config/claude-skill-gate-assessment/.env)",
-      "Grep(~/.config/claude-skill-gate-assessment/.env)",
-      "Read(~/.config/claude-skill-gate-assessment/.env)"
+      "Glob(*/.config/claude-skill-gate-assessment/.env)",
+      "Grep(*/.config/claude-skill-gate-assessment/.env)",
+      "Read(*/.config/claude-skill-gate-assessment/.env)"
     ]
   }
 }
