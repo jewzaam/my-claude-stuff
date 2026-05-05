@@ -16,6 +16,7 @@ from scripts.reconcile import (
     main,
     merge_settings,
     reconcile_claude_md,
+    reconcile_config_dir,
     reconcile_scripts,
     reconcile_settings,
 )
@@ -419,6 +420,73 @@ class TestReconcileScripts:
         dest_scripts = dest_dir / "my-claude-stuff" / "scripts"
         assert (dest_scripts / "good.py").exists()
         assert not (dest_scripts / "notes.txt").exists()
+
+
+class TestReconcileConfigDir:
+    def test_copies_files(self, tmp_path):
+        src_dir = tmp_path / "src"
+        dest_dir = tmp_path / "dest"
+        src_dir.mkdir()
+        (src_dir / "config.json").write_text('{"key": "value"}')
+
+        changed = reconcile_config_dir(src_dir, dest_dir)
+
+        assert changed is True
+        assert (dest_dir / "config.json").read_text() == '{"key": "value"}'
+
+    def test_skips_identical(self, tmp_path):
+        src_dir = tmp_path / "src"
+        dest_dir = tmp_path / "dest"
+        src_dir.mkdir()
+        dest_dir.mkdir()
+        (src_dir / "config.json").write_text("same")
+        (dest_dir / "config.json").write_text("same")
+
+        changed = reconcile_config_dir(src_dir, dest_dir)
+
+        assert changed is False
+
+    def test_overwrites_changed(self, tmp_path):
+        src_dir = tmp_path / "src"
+        dest_dir = tmp_path / "dest"
+        src_dir.mkdir()
+        dest_dir.mkdir()
+        (src_dir / "config.json").write_text("new")
+        (dest_dir / "config.json").write_text("old")
+
+        changed = reconcile_config_dir(src_dir, dest_dir)
+
+        assert changed is True
+        assert (dest_dir / "config.json").read_text() == "new"
+
+    def test_missing_src_dir(self, tmp_path):
+        changed = reconcile_config_dir(tmp_path / "nonexistent", tmp_path / "dest")
+
+        assert changed is False
+
+    def test_dryrun_does_not_write(self, tmp_path):
+        src_dir = tmp_path / "src"
+        dest_dir = tmp_path / "dest"
+        src_dir.mkdir()
+        (src_dir / "config.json").write_text("content")
+
+        changed = reconcile_config_dir(src_dir, dest_dir, dryrun=True)
+
+        assert changed is True
+        assert not (dest_dir / "config.json").exists()
+
+    def test_skips_subdirectories(self, tmp_path):
+        src_dir = tmp_path / "src"
+        dest_dir = tmp_path / "dest"
+        src_dir.mkdir()
+        (src_dir / "config.json").write_text("ok")
+        (src_dir / "subdir").mkdir()
+        (src_dir / "subdir" / "nested.json").write_text("skip")
+
+        reconcile_config_dir(src_dir, dest_dir)
+
+        assert (dest_dir / "config.json").exists()
+        assert not (dest_dir / "subdir").exists()
 
 
 class TestMain:
