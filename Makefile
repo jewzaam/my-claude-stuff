@@ -1,5 +1,6 @@
 .PHONY: install install-dev install-no-deps uninstall clean format test-format test-lint test-typecheck test-unit test-verbose test-coverage check help migrate reconcile
 
+MAKEFLAGS += --no-print-directory
 .DEFAULT_GOAL := check
 
 VENV_DIR ?= .venv

@@ -1,0 +1,11 @@
+{
+    "permissions": [
+        {
+            "matcher": "Skill",
+            "mode": "allow",
+            "patterns": [
+                "*"
+            ]
+        }
+    ]
+}

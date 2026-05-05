@@ -194,6 +194,49 @@ def reconcile_settings(
     return True
 
 
+def reconcile_config_dir(
+    src_dir: Path,
+    dest_dir: Path,
+    *,
+    dryrun: bool = False,
+    quiet: bool = False,
+) -> bool:
+    """Copy all files from src_dir to dest_dir (non-recursive).
+
+    Skips files that are already identical. Creates dest_dir if needed.
+    Returns True if any file changed.
+    """
+    if not src_dir.is_dir():
+        return False
+
+    changed = False
+    for src_file in sorted(src_dir.iterdir()):
+        if not src_file.is_file():
+            continue
+        dest_file = dest_dir / src_file.name
+        try:
+            if dest_file.exists() and src_file.read_text(
+                encoding="utf-8"
+            ) == dest_file.read_text(encoding="utf-8"):
+                continue
+        except OSError:
+            pass
+
+        changed = True
+        if dryrun:
+            print(f"Would copy: {src_file} -> {dest_file}")
+        else:
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, dest_file)
+            if not quiet:
+                print(f"Copied: {src_file} -> {dest_file}")
+
+    if not changed:
+        logger.info("%s already in sync", src_dir.name)
+
+    return changed
+
+
 def reconcile_scripts(
     repo_dir: Path,
     dest_dir: Path,
@@ -275,6 +318,16 @@ def main(argv=None):
         changed |= reconcile_scripts(
             args.src.parent, args.dest, dryrun=args.dryrun, quiet=args.quiet
         )
+        config_dir = args.src.parent / "config"
+        if config_dir.is_dir():
+            for subdir in sorted(config_dir.iterdir()):
+                if subdir.is_dir():
+                    changed |= reconcile_config_dir(
+                        subdir,
+                        Path.home() / ".config" / subdir.name,
+                        dryrun=args.dryrun,
+                        quiet=args.quiet,
+                    )
     except (json.JSONDecodeError, OSError) as exc:
         logger.error(f"reconcile failed: {exc}")
         return EXIT_ERROR
