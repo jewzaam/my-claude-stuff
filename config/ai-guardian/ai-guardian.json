@@ -1,6 +1,13 @@
 {
     "permissions": [
         {
+            "matcher": "mcp__*",
+            "mode": "allow",
+            "patterns": [
+                "mcp__allowlist__get_allowed_permissions"
+            ]
+        },
+        {
             "matcher": "Skill",
             "mode": "allow",
             "patterns": [
