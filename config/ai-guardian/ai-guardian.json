@@ -14,5 +14,19 @@
                 "*"
             ]
         }
-    ]
+    ],
+    "scan_pii": {
+        "enabled": true,
+        "pii_types": [
+            "ssn",
+            "phone",
+            "us_passport",
+            "iban",
+            "intl_phone"
+        ],
+        "action": "block",
+        "ignore_files": [],
+        "ignore_tools": [],
+        "allowlist_patterns": []
+    }
 }
