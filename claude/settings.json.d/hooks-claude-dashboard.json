@@ -1,114 +1,114 @@
 {
-    "hooks": {
-        "UserPromptSubmit": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
-        ],
-        "PreToolUse": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
-        ],
-        "PermissionRequest": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
-        ],
-        "PostToolUse": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
-        ],
-        "PostToolUseFailure": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
-        ],
-        "Stop": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
-        ],
-        "StopFailure": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
-        ],
-        "SessionEnd": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
-        ],
-        "Notification": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
-        ],
-        "SubagentStart": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
-        ],
-        "SubagentStop": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug"
-                    }
-                ]
-            }
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
         ]
-    }
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "python ~/.claude/claude-dashboard/scripts/hook_relay.py --debug",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
 }
