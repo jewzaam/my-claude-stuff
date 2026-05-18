@@ -56,6 +56,8 @@ Blocked categories:
        arbitrary ``python <path>.py`` outside ``scripts/`` directories
   Sed: all sed invocations except read-only line-range print
        (sed -n '<range>p' — use Read tool with offset/limit instead)
+  Awk: system() calls and output redirection inside awk programs
+       (all other awk is inherently read-only and allowed)
   Package install: pip install, npm install, cargo install, go install
   Semgrep: --autofix/-a/--replacement (mutation), login/logout/publish/
            install-semgrep-pro (state or network egress)
@@ -398,13 +400,32 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         "file a missing test if runtime verification is required)",
     ),
     # sed: block all except read-only line-range print (sed -n '<range>p')
+    # Require \s after sed to avoid matching "sed" in filenames (e.g. sed-readonly.json)
     (
         re.compile(
-            rf"{_ENV}{_PATH}sed{_EXE}\b"
+            rf"{_ENV}{_PATH}sed{_EXE}(?=\s)"
             r"(?!\s+-n\s+['\"]?\d+(?:,\d+)?p['\"]?(?:\s|\Z))"
         ),
         "sed (use the built-in Read tool with offset/limit, "
         "or sed -n '<range>p' for line extraction)",
+    ),
+    # awk: block system() calls (command execution from within awk)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}(?:g?awk|mawk|nawk){_EXE}\b"
+            r".*['\"][^'\"]*\bsystem\s*\([^'\"]*['\"]"
+        ),
+        "awk system() (executes shell commands — "
+        "use subprocess or Bash tool directly)",
+    ),
+    # awk: block output redirection inside awk program (writes files)
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}(?:g?awk|mawk|nawk){_EXE}\b"
+            r".*['\"][^'\"]*>(?!&)[^'\"]*['\"]"
+        ),
+        "awk output redirection (writes files from within awk — "
+        "use shell redirection or Write tool instead)",
     ),
     # Package installation against the user's environment
     (

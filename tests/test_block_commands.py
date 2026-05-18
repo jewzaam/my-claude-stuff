@@ -1457,6 +1457,75 @@ class TestSedBlocked:
     def test_piped_line_range_print_allowed(self, command: str) -> None:
         assert block_commands.check_command(command) is None
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git mv foo/sed-readonly.json bar/text-tools.json",
+            "ls sed-readonly.json",
+            "cat path/to/sed-config.yaml",
+        ],
+    )
+    def test_sed_in_filename_not_blocked(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
+class TestAwkBlocked:
+    """awk must block system() calls and output redirection."""
+
+    _SYSTEM_MSG = (
+        "awk system() (executes shell commands — "
+        "use subprocess or Bash tool directly)"
+    )
+    _REDIR_MSG = (
+        "awk output redirection (writes files from within awk — "
+        "use shell redirection or Write tool instead)"
+    )
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("awk '{system(\"rm \" $1)}' file.txt", _SYSTEM_MSG),
+            ("awk 'BEGIN{system(\"dangerous\")}' file.txt", _SYSTEM_MSG),
+            ("gawk '{system(\"cmd\")}' file.txt", _SYSTEM_MSG),
+            ("mawk '{system(\"cmd\")}' file.txt", _SYSTEM_MSG),
+            ("nawk '{system(\"cmd\")}' file.txt", _SYSTEM_MSG),
+            ("/usr/bin/awk '{system(\"rm\")}' file.txt", _SYSTEM_MSG),
+            ("awk.exe '{system(\"cmd\")}' file.txt", _SYSTEM_MSG),
+            ("env awk '{system(\"cmd\")}' file.txt", _SYSTEM_MSG),
+        ],
+    )
+    def test_system_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("awk '{print $1 > \"output.txt\"}' file.txt", _REDIR_MSG),
+            ("awk '{print $1 >> \"output.txt\"}' file.txt", _REDIR_MSG),
+            ("gawk '{print > \"out.txt\"}' file.txt", _REDIR_MSG),
+        ],
+    )
+    def test_output_redirection_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "awk '{print $1}' file.txt",
+            "awk '/pattern/ {print}' file.txt",
+            "awk -F: '{print $1}' /etc/passwd",
+            "awk -F= '{print $2}' config.ini",
+            "awk '/def main/,/^def [a-z_]/ {print NR\": \"$0}' file.py",
+            'awk \'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\\n", $1, $2}\' Makefile',
+            "awk '{print $4}' file.txt",
+            "awk '/ipv4/{print $4}' file.txt",
+            "gawk '{print $1}' file.txt",
+            "mawk '{print $1}' file.txt",
+        ],
+    )
+    def test_read_only_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
 
 class TestPackageInstallBlocks:
     """Block package installation against the user's environment."""
