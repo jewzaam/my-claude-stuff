@@ -1407,6 +1407,57 @@ class TestInlineExecutionBlocks:
         assert block_commands.check_command(command) is None
 
 
+class TestSedBlocked:
+    """sed must be blocked except for read-only line-range print."""
+
+    _MSG = (
+        "sed (use the built-in Read tool with offset/limit, "
+        "or sed -n '<range>p' for line extraction)"
+    )
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("sed 's/foo/bar/' file.txt", _MSG),
+            ("sed -i 's/foo/bar/' file.txt", _MSG),
+            ("sed -e 's/foo/bar/' file.txt", _MSG),
+            ("sed -n 's/foo/bar/p' file.txt", _MSG),
+            ("sed -n '/pattern/p' file.txt", _MSG),
+            ("sed -n '1,6d' file.txt", _MSG),
+            ("sed -n '1,6w output.txt' file.txt", _MSG),
+            ("sed '1,6p' file.txt", _MSG),
+            ("/usr/bin/sed 's/foo/bar/' file.txt", _MSG),
+            ("sed.exe -i 's/a/b/' file.txt", _MSG),
+            ("env sed 's/x/y/' file.txt", _MSG),
+        ],
+    )
+    def test_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "sed -n '1,6p' file.txt",
+            "sed -n '89,90p' file.txt",
+            "sed -n '5p' file.txt",
+            "sed -n 1,6p file.txt",
+            "sed -n '100,200p' /path/to/file.md",
+        ],
+    )
+    def test_line_range_print_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "cat file.txt | sed -n '1,6p'",
+            "cat /path/to/file.md | sed -n '89,90p'",
+        ],
+    )
+    def test_piped_line_range_print_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+
 class TestPackageInstallBlocks:
     """Block package installation against the user's environment."""
 

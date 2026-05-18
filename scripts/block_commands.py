@@ -54,6 +54,8 @@ Blocked categories:
        process substitution (``<runtime> <(...)``),
        shell -c wrapping a runtime (``bash -c "python ..."``),
        arbitrary ``python <path>.py`` outside ``scripts/`` directories
+  Sed: all sed invocations except read-only line-range print
+       (sed -n '<range>p' — use Read tool with offset/limit instead)
   Package install: pip install, npm install, cargo install, go install
   Semgrep: --autofix/-a/--replacement (mutation), login/logout/publish/
            install-semgrep-pro (state or network egress)
@@ -394,6 +396,15 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         ),
         "running arbitrary .py file (use Read/Glob/Grep; "
         "file a missing test if runtime verification is required)",
+    ),
+    # sed: block all except read-only line-range print (sed -n '<range>p')
+    (
+        re.compile(
+            rf"{_ENV}{_PATH}sed{_EXE}\b"
+            r"(?!\s+-n\s+['\"]?\d+(?:,\d+)?p['\"]?(?:\s|\Z))"
+        ),
+        "sed (use the built-in Read tool with offset/limit, "
+        "or sed -n '<range>p' for line extraction)",
     ),
     # Package installation against the user's environment
     (
