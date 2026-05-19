@@ -19,10 +19,8 @@
         "enabled": true,
         "pii_types": [
             "ssn",
-            "phone",
             "us_passport",
-            "iban",
-            "intl_phone"
+            "iban"
         ],
         "action": "block",
         "ignore_files": [],
