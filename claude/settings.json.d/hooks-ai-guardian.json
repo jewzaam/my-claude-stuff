@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "ai-guardian",
+            "command": "python -m ai_guardian",
             "statusMessage": "🛡️ Scanning tool output...",
             "type": "command"
           }
@@ -16,7 +16,7 @@
       {
         "hooks": [
           {
-            "command": "ai-guardian",
+            "command": "python -m ai_guardian",
             "statusMessage": "🛡️ Checking tool permissions...",
             "type": "command"
           }
@@ -28,7 +28,7 @@
       {
         "hooks": [
           {
-            "command": "ai-guardian",
+            "command": "python -m ai_guardian",
             "statusMessage": "🛡️ Scanning prompt...",
             "type": "command"
           }
