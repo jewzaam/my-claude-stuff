@@ -32,5 +32,11 @@
     },
     "ssrf_protection": {
         "allow_localhost": true
+    },
+    "daemon": {
+        "mode": "local",
+        "tray": {
+            "enabled": true
+        }
     }
 }
