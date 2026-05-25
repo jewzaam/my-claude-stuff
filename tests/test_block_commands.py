@@ -159,6 +159,22 @@ class TestCheckCommand:
     def test_git_dash_c_readonly_allowed(self, command: str) -> None:
         assert block_commands.check_command(command) is None
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git --git-dir=/some/path/.git status",
+            "git --git-dir /some/path/.git status",
+            "git --git-dir=../parent/.git log",
+            "git --git-dir ~/repo/.git fetch",
+            "/usr/bin/git --git-dir=/repo/.git branch",
+            "env git --git-dir=/repo/.git push",
+        ],
+    )
+    def test_git_dir_blocked(self, command: str) -> None:
+        result = block_commands.check_command(command)
+        assert result is not None
+        assert "--git-dir" in result
+
     def test_su_standalone(self) -> None:
         assert block_commands.check_command("su") == "su"
         assert block_commands.check_command("su -") == "su"
@@ -225,7 +241,6 @@ class TestCheckCommand:
     @pytest.mark.parametrize(
         "command,expected",
         [
-            ("git --git-dir=/tmp/.git add .", "git add"),
             ("git -c user.name=test push", "git push"),
         ],
     )

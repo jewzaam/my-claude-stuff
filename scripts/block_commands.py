@@ -20,6 +20,7 @@ Blocked categories:
   Git: -C flag (blocked for absolute/parent/home paths;
        exceptions: relative subdirectory paths, git-worktrees/ paths,
        read-only subcommands: status/log/diff),
+       --git-dir / --git-dir= (use -C instead),
        add, push, reset, clean (except -n),
        branch (destructive flags only),
        stash (except list/show), commit --amend/-a, checkout -- (discard),
@@ -152,6 +153,13 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         ),
         "git -C (blocked for absolute/parent/home paths"
         " — subdirectory and worktree paths are allowed)",
+    ),
+    # git --git-dir / --git-dir=: redirect users to git -C, which honors
+    # the worktree/read-only/subdirectory rules above. --git-dir bypasses
+    # those rules and is harder to reason about.
+    (
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}\s+--git-dir(?:=|\s)"),
+        "git --git-dir (use git -C <dir> instead)",
     ),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+add\b"), "git add"),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+push\b"), "git push"),
