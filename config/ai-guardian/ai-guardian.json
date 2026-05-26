@@ -1,16 +1,8 @@
 {
     "permissions": {
-        "enabled": true,
         "rules": [
             {
                 "matcher": "mcp__*",
-                "mode": "allow",
-                "patterns": [
-                    "mcp__allowlist__get_allowed_permissions"
-                ]
-            },
-            {
-                "matcher": "Skill",
                 "mode": "allow",
                 "patterns": [
                     "*"
@@ -19,16 +11,13 @@
         ]
     },
     "scan_pii": {
-        "enabled": true,
         "pii_types": [
             "ssn",
             "us_passport",
-            "iban"
-        ],
-        "action": "block",
-        "ignore_files": [],
-        "ignore_tools": [],
-        "allowlist_patterns": []
+            "iban",
+            "intl_phone",
+            "address"
+        ]
     },
     "ssrf_protection": {
         "allow_localhost": true
