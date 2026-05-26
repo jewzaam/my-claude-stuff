@@ -27,5 +27,8 @@
         "tray": {
             "enabled": true
         }
+    },
+    "security_instructions": {
+        "inject_on_prompt": false
     }
 }
