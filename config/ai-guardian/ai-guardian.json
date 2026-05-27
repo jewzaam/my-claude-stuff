@@ -7,6 +7,13 @@
                 "patterns": [
                     "*"
                 ]
+      },
+      {
+        "matcher": "Skill",
+        "mode": "allow",
+        "patterns": [
+          "*"
+        ]
             }
         ]
     },
@@ -17,10 +24,12 @@
             "iban",
             "intl_phone",
             "address"
-        ]
+    ],
+    "action": "block"
     },
     "ssrf_protection": {
-        "allow_localhost": true
+    "allow_localhost": true,
+    "action": "block"
     },
     "daemon": {
         "mode": "local",
@@ -30,5 +39,27 @@
     },
     "security_instructions": {
         "inject_on_prompt": false
+  },
+  "mcp_server": {
+    "proactive_level": "low"
+  },
+  "secret_scanning": {
+    "execution_strategy": "first-match"
+  },
+  "directory_rules": {
+    "action": "block"
+  },
+  "console": {
+    "editor_theme": "monokai"
+  },
+  "on_scan_error": "allow",
+  "secret_redaction": {
+    "action": "warn"
+  },
+  "prompt_injection": {
+    "action": "block"
+  },
+  "config_file_scanning": {
+    "action": "block"
     }
 }
