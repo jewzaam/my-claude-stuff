@@ -1,12 +1,12 @@
 {
-    "permissions": {
-        "rules": [
-            {
-                "matcher": "mcp__*",
-                "mode": "allow",
-                "patterns": [
-                    "*"
-                ]
+  "permissions": {
+    "rules": [
+      {
+        "matcher": "mcp__*",
+        "mode": "allow",
+        "patterns": [
+          "*"
+        ]
       },
       {
         "matcher": "Skill",
@@ -14,37 +14,43 @@
         "patterns": [
           "*"
         ]
-            }
-        ]
-    },
-    "scan_pii": {
-        "pii_types": [
-            "ssn",
-            "us_passport",
-            "iban",
-            "intl_phone",
-            "address"
+      }
+    ]
+  },
+  "scan_pii": {
+    "pii_types": [
+      "ssn",
+      "us_passport",
+      "iban",
+      "intl_phone",
+      "address"
     ],
     "action": "block"
-    },
-    "ssrf_protection": {
+  },
+  "ssrf_protection": {
     "allow_localhost": true,
-    "action": "block"
-    },
-    "daemon": {
-        "mode": "local",
-        "tray": {
-            "enabled": true
-        }
-    },
-    "security_instructions": {
-        "inject_on_prompt": false
+    "action": "block",
+    "enabled": true
+  },
+  "daemon": {
+    "mode": "local",
+    "tray": {
+      "enabled": true
+    }
+  },
+  "security_instructions": {
+    "inject_on_prompt": false
   },
   "mcp_server": {
     "proactive_level": "low"
   },
   "secret_scanning": {
-    "execution_strategy": "first-match"
+    "execution_strategy": "first-match",
+    "enabled": true,
+    "allowlist_patterns": [
+      "docs\\.google\\.com/(document|spreadsheets|presentation|forms)/d/[a-zA-Z0-9_-]+",
+      "drive\\.google\\.com/(file|drive)/(d|folders)/[a-zA-Z0-9_-]+"
+    ]
   },
   "directory_rules": {
     "action": "block"
@@ -54,12 +60,18 @@
   },
   "on_scan_error": "allow",
   "secret_redaction": {
-    "action": "warn"
+    "action": "warn",
+    "enabled": true
   },
   "prompt_injection": {
-    "action": "block"
+    "action": "block",
+    "enabled": true,
+    "unicode_detection": {
+      "enabled": true
+    }
   },
   "config_file_scanning": {
-    "action": "block"
-    }
+    "action": "block",
+    "enabled": true
+  }
 }
