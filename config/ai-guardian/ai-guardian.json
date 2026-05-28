@@ -50,7 +50,12 @@
     "allowlist_patterns": [
       "docs\\.google\\.com/(document|spreadsheets|presentation|forms)/d/[a-zA-Z0-9_-]+",
       "drive\\.google\\.com/(file|drive)/(d|folders)/[a-zA-Z0-9_-]+"
-    ]
+    ],
+    "engines": [
+      "betterleaks",
+      "gitleaks"
+    ],
+    "consensus_threshold": 2
   },
   "directory_rules": {
     "action": "block"
