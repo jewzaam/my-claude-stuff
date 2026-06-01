@@ -73,7 +73,8 @@
     "enabled": true,
     "unicode_detection": {
       "enabled": true,
-      "detect_homoglyphs": false
+      "detect_homoglyphs": false,
+      "detect_zero_width": false
     }
   },
   "config_file_scanning": {
