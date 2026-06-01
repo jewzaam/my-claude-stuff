@@ -72,7 +72,8 @@
     "action": "block",
     "enabled": true,
     "unicode_detection": {
-      "enabled": true
+      "enabled": true,
+      "detect_homoglyphs": false
     }
   },
   "config_file_scanning": {
