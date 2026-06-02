@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(openshell * --help)",
+      "Bash(openshell gateway list)",
+      "Bash(openshell sandbox list)"
+    ]
+  }
+}
