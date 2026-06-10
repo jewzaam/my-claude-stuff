@@ -1,9 +1,13 @@
 {
   "permissions": {
     "allow": [
+      "Bash(openshell --help)",
       "Bash(openshell * --help)",
+      "Bash(openshell-gateway --help)",
+      "Bash(openshell-gateway * --help)",
       "Bash(openshell gateway list)",
-      "Bash(openshell sandbox list)"
+      "Bash(openshell sandbox list)",
+      "Bash(openshell settings get *)"
     ]
   }
 }
