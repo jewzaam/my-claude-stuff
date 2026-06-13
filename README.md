@@ -11,7 +11,7 @@ Claude Code configuration and statusline scripts with cross-platform support (Li
 
 - `claude/` — Claude Code config files (`CLAUDE.md`, `settings.json.d/`)
 - `scripts/` — Python scripts for statusline, session tracking, and command blocking
-- Third-party hooks: [ai-guardian](https://github.com/itdove/ai-guardian), [claude-dashboard](https://github.com/syther-labs/claude-dashboard)
+- Hook fragments: [ai-guardian](https://github.com/itdove/ai-guardian) (security scanning), noop (OTEL event coverage)
 - `docs/` — Design docs and reference material
 - `Makefile` — Standard targets (format, lint, typecheck, test, coverage)
 
