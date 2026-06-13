@@ -1,10 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Read(~/.claude/skills/why/templates/**)",
-      "Read(~/.claude/skills/why/templates/*)",
+      "Read(~/.claude/skills/why/agents/*)",
       "Read(~/.claude/skills/why/agents/**)",
-      "Read(~/.claude/skills/why/agents/*)"
+      "Read(~/.claude/skills/why/templates/*)",
+      "Read(~/.claude/skills/why/templates/**)"
     ]
   }
 }

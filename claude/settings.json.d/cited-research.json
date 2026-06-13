@@ -8,15 +8,15 @@
       "Bash(python ~/.claude/skills/cited-research/scripts/* *)",
       "Bash(python3 ~/.claude/skills/cited-research/scripts/* *)",
       "Read(*/.local/share/cited-research-data/**)",
+      "Read(/home/nmalik/.claude/skills/cited-research/agents/*)",
+      "Read(/home/nmalik/.claude/skills/cited-research/agents/**)",
       "Read(/tmp/cited-research/*)",
       "Read(~/.claude/skills/cited-research/references/*)",
       "Read(~/.claude/skills/cited-research/references/**)",
       "Read(~/.local/share/cited-research-data/**)",
       "Read(~/source/cited-research/**)",
       "Read(~\\.claude\\skills\\cited-research\\references\\*)",
-      "Read(~\\.claude\\skills\\cited-research\\references\\**)",
-      "Read(/home/nmalik/.claude/skills/cited-research/agents/*)",
-      "Read(/home/nmalik/.claude/skills/cited-research/agents/**)"
+      "Read(~\\.claude\\skills\\cited-research\\references\\**)"
     ]
   }
 }

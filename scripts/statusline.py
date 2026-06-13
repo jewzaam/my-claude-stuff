@@ -11,12 +11,6 @@ Colors:
   Model:    orange
   Session:  purple
 
-Quota labels show time remaining until reset, e.g.:
-  3h4m: 20% | 4d12h: 4%
-At most 2 units of precision: d+h, h+m, m+s, or single unit.
-When 5h quota hits 100% and extra usage is enabled, appends $used/$limit.
-Freshness only shown on stale/error: (!5m)
-
 S/T/P = Session / Today / Project cost (USD).
 Session ID appended for cross-session prompt log correlation.
 """
@@ -24,11 +18,8 @@ Session ID appended for cross-session prompt log correlation.
 import json
 import logging
 import logging.handlers
-import os
-import platform
 import sys
 import time
-import urllib.request
 from pathlib import Path
 
 # Ensure scripts/ parent is on sys.path so `from scripts.config` works
@@ -148,105 +139,6 @@ def format_remaining(resets_at):
     return format_duration(remaining)
 
 
-_AGENTPULSE_CONFIG = Path.home() / ".claude" / "agentpulse" / "config.json"
-
-# Snapshots older than this are flagged with a (!age) marker on the bar.
-# Server fetch TTL is ~120s; 5min gives a comfortable margin.
-_STALE_THRESHOLD_SECONDS = 300
-
-
-def get_usage():
-    """Fetch the latest api-limits row from agentpulse /api/v2/log/api-limits.
-
-    Returns (usage_dict, age_seconds, stale) or (None, 0, False).
-    Agentpulse owns OAuth, caching, and backoff — statusline is a pure
-    display client. The v2 row is reshaped into a nested dict so main()
-    can read buckets uniformly. resets_at values are floats (Unix epoch
-    seconds). extra_usage lives in raw_response and is parsed when present.
-    """
-    try:
-        if not _AGENTPULSE_CONFIG.exists():
-            return None, 0, False
-        cfg = json.loads(_AGENTPULSE_CONFIG.read_text(encoding="utf-8"))
-        if not cfg.get("fetch_limits", True):
-            return None, 0, False
-        host = cfg.get("host", "127.0.0.1")
-        port = cfg.get("port", 17385)
-        url = f"http://{host}:{port}/api/v2/log/api-limits?order=desc&limit=1"
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            rows = json.loads(resp.read())
-        if not rows:
-            return None, 0, False
-        row = rows[0]
-        usage = {
-            "five_hour": {
-                "utilization": row.get("five_hour_utilization"),
-                "resets_at": row.get("five_hour_resets_at"),
-            },
-            "seven_day": {
-                "utilization": row.get("seven_day_utilization"),
-                "resets_at": row.get("seven_day_resets_at"),
-            },
-        }
-        raw_response = row.get("raw_response")
-        if raw_response:
-            try:
-                extra_usage = json.loads(raw_response).get("extra_usage")
-                if extra_usage:
-                    usage["extra_usage"] = extra_usage
-            except (json.JSONDecodeError, TypeError, AttributeError):
-                pass
-        received_at = row.get("received_at")
-        if received_at:
-            age_seconds = max(0, int(time.time() - float(received_at)))
-        else:
-            age_seconds = 0
-        stale = age_seconds > _STALE_THRESHOLD_SECONDS
-        return usage, age_seconds, stale
-    except Exception:
-        return None, 0, False
-
-
-def _relay_to_agentpulse(data):
-    """POST statusline data to agentpulse. Silent on failure."""
-    try:
-        if not _AGENTPULSE_CONFIG.exists():
-            return
-        cfg = json.loads(_AGENTPULSE_CONFIG.read_text(encoding="utf-8"))
-        host = cfg.get("host", "127.0.0.1")
-        port = cfg.get("port", 17385)
-
-        # Inject source_system and pid so agentpulse can create the session
-        # on the first statusline tick, before any hooks fire.
-        data["source_system"] = platform.node()
-        try:
-            import psutil
-
-            claude_pid = 0
-            for proc in psutil.Process(os.getpid()).parents():
-                try:
-                    if "claude" in proc.name().lower():
-                        claude_pid = proc.pid
-                        break
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    break
-            data["pid"] = claude_pid or os.getppid()
-        except ImportError:
-            data["pid"] = os.getppid()
-
-        url = f"http://{host}:{port}/statusline/claude"
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(data).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        urllib.request.urlopen(req, timeout=1)
-    except Exception:
-        pass
-
-
 def main():
     _configure_logging()
     try:
@@ -255,8 +147,6 @@ def main():
         print("Claude Code")
         return
 
-    _relay_to_agentpulse(data)
-
     model = data.get("model", {}).get("display_name", "Claude")
     parts = []
 
@@ -264,33 +154,6 @@ def main():
     used_pct = ctx.get("used_percentage")
     if used_pct is not None:
         parts.append(f"Context: {colorize_pct(used_pct)}")
-
-    usage, age_seconds, stale = get_usage()
-    if usage:
-        for bucket in ("five_hour", "seven_day"):
-            entry = usage.get(bucket)
-            if not entry:
-                continue
-            pct = entry.get("utilization")
-            if pct is None:
-                continue
-            label = format_remaining(entry.get("resets_at"))
-            if label is None:
-                label = "5h" if bucket == "five_hour" else "1w"
-            segment = f"{label}: {colorize_pct(pct)}"
-            if bucket == "five_hour" and pct >= 100:
-                extra = usage.get("extra_usage")
-                if extra and extra.get("is_enabled"):
-                    used = extra.get("used_credits_usd", 0)
-                    limit = extra.get("monthly_limit_usd", 0)
-                    extra_pct = (used / limit * 100) if limit else 0
-                    color = _pct_color(extra_pct)
-                    segment += f" {color}${used:.0f}/${limit:.0f}{ANSI_RESET}"
-            parts.append(segment)
-
-        if stale:
-            age_str = format_duration(age_seconds)
-            parts.append(f"({ANSI_RED}!{age_str}{ANSI_RESET})")
 
     from scripts.session_tracker import get_daily_cost, get_project_cost, track_session
 
