@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-This repo uses Claude Code hooks to block destructive commands and log prompts/responses/questions. Custom hooks are in `claude/settings.json.d/hooks-my-claude-stuff.json`. Third-party hooks are in separate fragments: `hooks-ai-guardian.json`, `hooks-claude-dashboard.json`. All deployed via `make reconcile`.
+This repo uses Claude Code hooks to block destructive commands and log prompts/responses/questions. Custom hooks are in `claude/settings.json.d/hooks-my-claude-stuff.json`. Additional fragments: `hooks-ai-guardian.json` (security scanning), `hooks-noop.json` (OTEL event coverage). All deployed via `make reconcile`.
 
 ## What Are Hooks
 
@@ -38,11 +38,11 @@ Configuration lives in `claude/settings.json.d/hooks-my-claude-stuff.json`.
 | `Notification` | `*` | Scan tool output for injection/leakage |
 | `UserPromptSubmit` | `*` | Scan user prompts |
 
-#### claude-dashboard (`hooks-claude-dashboard.json`)
+#### hooks-noop (`hooks-noop.json`)
 
-[claude-dashboard](https://github.com/syther-labs/claude-dashboard) relays all lifecycle events to a local dashboard for real-time session monitoring.
-
-Hooks on all events: `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `StopFailure`, `SessionEnd`, `Notification`, `SubagentStart`, `SubagentStop`.
+No-op hooks covering every event type. Required so Claude Code emits OTEL data for all events —
+presence of a hook gates OTEL emission. See [`docs/noop-hooks.md`](noop-hooks.md) for full
+explanation.
 
 ## Prompt Log Hook (`scripts/prompt_log.py`)
 
