@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-This repo uses Claude Code hooks to block destructive commands and log prompts/responses/questions. Custom hooks are in `claude/settings.json.d/hooks-my-claude-stuff.json`. Third-party hooks are in separate fragments: `hooks-ai-guardian.json`, `hooks-claude-dashboard.json`, `hooks-agentpulse.json`. All deployed via `make reconcile`.
+This repo uses Claude Code hooks to block destructive commands and log prompts/responses/questions. Custom hooks are in `claude/settings.json.d/hooks-my-claude-stuff.json`. Third-party hooks are in separate fragments: `hooks-ai-guardian.json`, `hooks-claude-dashboard.json`. All deployed via `make reconcile`.
 
 ## What Are Hooks
 
@@ -41,12 +41,6 @@ Configuration lives in `claude/settings.json.d/hooks-my-claude-stuff.json`.
 #### claude-dashboard (`hooks-claude-dashboard.json`)
 
 [claude-dashboard](https://github.com/syther-labs/claude-dashboard) relays all lifecycle events to a local dashboard for real-time session monitoring.
-
-Hooks on all events: `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `StopFailure`, `SessionEnd`, `Notification`, `SubagentStart`, `SubagentStop`.
-
-#### agentpulse (`hooks-agentpulse.json`)
-
-[agentpulse](https://github.com/AgenTP/agentpulse) relays lifecycle events to a monitoring dashboard with configurable output.
 
 Hooks on all events: `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `StopFailure`, `SessionEnd`, `Notification`, `SubagentStart`, `SubagentStop`.
 
