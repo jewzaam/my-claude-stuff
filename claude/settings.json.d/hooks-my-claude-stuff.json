@@ -1,16 +1,5 @@
 {
   "hooks": {
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "python3 ~/.claude/my-claude-stuff/scripts/prompt_log.py",
-            "type": "command"
-          }
-        ],
-        "matcher": "AskUserQuestion"
-      }
-    ],
     "PreToolUse": [
       {
         "hooks": [
@@ -25,28 +14,6 @@
         "hooks": [
           {
             "command": "python3 ~/.claude/my-claude-stuff/scripts/block_paths.py",
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "command": "python3 ~/.claude/my-claude-stuff/scripts/prompt_log.py",
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "command": "python3 ~/.claude/my-claude-stuff/scripts/prompt_log.py",
             "type": "command"
           }
         ],
