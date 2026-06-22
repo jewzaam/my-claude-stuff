@@ -8,7 +8,11 @@
     "feature-dev@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "superpowers@superpowers-dev": true
+    "superpowers@superpowers-dev": true,
+    "plugin-dev@claude-plugins-official": true,
+    "jewzaam-reviews@jewzaam-reviews-marketplace": true,
+    "caveman@caveman": true,
+    "ponytail@ponytail": true
   },
   "extraKnownMarketplaces": {
     "superpowers-dev": {
@@ -17,7 +21,26 @@
         "repo": "jewzaam/superpowers",
         "source": "github"
       }
+    },
+    "jewzaam-reviews-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "jewzaam/jewzaam-reviews"
+      }
+    },
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    },
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
     }
+
   },
   "permissions": {
     "allow": [
