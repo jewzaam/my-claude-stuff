@@ -37,6 +37,8 @@
 - Ask for help if unable to validate
 - **Never fabricate numbers** — if value (timing, duration, count) not in logs, code, or docs, say "I don't know." No plausible guesses as facts
 - **Read full content directly** — no partial files or summarizing to save tokens. Speed and accuracy over token efficiency
+- **Verify before asserting** — don't guess API behavior, tool capabilities, or system state. Read the code, check the docs, run the command. "It should work" is not verification. If you can't verify, say "I haven't verified this" — never present a guess as fact
+- **Acknowledge the specific error** — when corrected, identify what you got wrong before proceeding. Don't just silently switch approaches — name the incorrect assumption so user knows you understood
 
 ## Task Management
 - Stay focused — consult user before unrequested work
@@ -44,13 +46,16 @@
 - Next steps from user
 - We both make mistakes — welcome corrections, offer them back
 - **No narrating review steps** — after changes, proceed to validation. No telling user to "go review" or "validate"; they review on own terms
-- **"Tell me"** means report findings and STOP — no acting unless explicitly asked
+- **"Stop" means STOP** — any variant: "stop", "if blocked stop", "can't access X stop and tell me". Immediately halt current action, report status, wait. No trying alternatives, no partial results, no workarounds. This includes "tell me" (report and stop) and "if blocked, stop" (conditional stop)
 - **Follow skill instructions exactly** — skill defines edge case handling → use that, no overriding
 - **Never ask about execution strategy** — skills offer subagent vs inline → pick faster, proceed
 - **Batch clarification questions** — ask all at once in single AskUserQuestion. Never one at a time
 - **Approved plans run to completion** — execute all continuously. No pausing for go/no-go. Only stop for critical blockers needing user input
 - **Never auto-invoke /commit** — runs only when user types `/commit` as chat input. Not after fixes/checks/skills. Committing is deliberate
 - **Completion standard** — nothing done until validated. Verify outcomes, not actions. Running command not done; confirming effect is
+- **Re-read before "done"** — before claiming completion, re-read user's original request. Check every stated requirement against what was delivered. Silently dropped requirements are the most frustrating failure mode
+- **"Try again" = retry same action** — user is likely fixing something external (hooks, permissions, config). Re-run the same command and say "retrying, assuming prior issue resolved." Only change approach if user explicitly says what to change or qualifies "try again" with new instructions
+- **Match existing structure** — editing documents, configs, or code: match existing organizational patterns. Never invent new sections, categories, or structural hierarchies unless explicitly asked. If existing structure has problems, flag them — don't silently "fix" by restructuring
 
 ## Attribution
 - **Commits**: include `Assisted-by: <Tool> (<Model>)` (e.g., `Assisted-by: Claude Code (Claude Opus 4.6)`)
@@ -113,6 +118,7 @@ Decision rule: if it tells you *what to do in your code* → standards. If it te
 - **Use Makefile targets** when available — Makefile is project's CLI interface
 - Use **exact same command string AND description** for repeated ops — no varying text, counts, or flags
 - **Use `**` for directory Read permissions** — single `*` matches one level only. Always use `Read(~/path/**)` for recursive access in `settings.json`
+- **Hook blocks → follow hook feedback** — when a hook blocks an action: read the block response. If it contains instructions or corrective guidance, follow them — that's the hook doing its job, not a workaround. If the block has no actionable guidance, report the hook name and what was blocked, then wait. Do NOT independently modify permissions, try alternate commands, or invent workarounds — hooks are security boundaries the user put there deliberately
 
 ## Screenshots
 - **Windows**: `~/Pictures/Screenshots/`
