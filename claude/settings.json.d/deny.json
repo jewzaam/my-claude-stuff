@@ -6,10 +6,12 @@
       "Grep(**/.aws/**)",
       "Grep(**/.env)",
       "Grep(**/.ssh/**)",
+      "Grep(**/.config/gws/**)",
       "Read(**/*.kdbx)",
       "Read(**/.aws/**)",
       "Read(**/.env)",
-      "Read(**/.ssh/**)"
+      "Read(**/.ssh/**)",
+      "Read(**/.config/gws/**)"
     ]
   }
 }
