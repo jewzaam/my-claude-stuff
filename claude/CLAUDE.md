@@ -86,6 +86,8 @@ Decision rule: if it tells you *what to do in your code* → standards. If it te
 - **Versioning**: new projects start at `0.1.0`, follow [SemVer](https://semver.org/). User decides when to bump.
 - Put investigative/exploratory code in durable scripts (e.g., `scripts/explore/`), not inline `python -c` — reproducible, reviewable, portable
 - **Use `python -m <module>`** not naked commands (e.g., `python -m pip` not `pip`, `python -m pytest` not `pytest`) — ensures correct interpreter and environment
+- **Active modes are hard constraints, not suggestions** — when ponytail, caveman, or any behavioral mode is active, apply its rules BEFORE proposing or executing work. "I'll do it and the mode would disagree" is a violation. If a mode's ladder would reject the approach, say so and propose what the mode would choose instead. Never acknowledge a mode is active and then bypass it
+- **Extraction requires justification, not just duplication** — duplicated code is not inherently a problem. Before proposing extraction: (1) are the callers in the same language? (2) does the duplicated logic actually change together? (3) is the duplication more than ~10 lines? If any answer is no, leave it. Three identical lines across three files is cheaper than one shared module with three importers
 
 ## Reviews
 - Capture reviews in `Review-<short context>.md` in project root
