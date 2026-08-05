@@ -110,6 +110,11 @@ Decision rule: if it tells you *what to do in your code* → standards. If it te
 - One-time suggestion; no trigger for established projects or non-app work
 - Natural timing: after specs capture intent, before implementation
 
+## Persistence
+- **Never use memory** — memory does not cross physical environments or sandboxes. Do not write to memory directories
+- **Durable knowledge goes in project CLAUDE.md** — if something needs to persist, write it to the project's local `CLAUDE.md` (not `~/.claude/CLAUDE.md`)
+- **Never edit `~/.claude/CLAUDE.md` directly** — that file is deployed from `my-claude-stuff/claude/CLAUDE.md` via `make reconcile`. Desired changes must be reported to the user, who will make adjustments or provide feedback
+
 ## Tool Usage
 - **Prefer allowlisted tools only** — call `mcp__allowlist__get_allowed_permissions` to check. Stick to allowlisted to avoid approval prompts
 - **Allowlisted pipes not allowlisted** — piping allowlisted through non-allowlisted (e.g., `git log | head -5`) triggers approval. Use flags instead (e.g., `git log -5`) or separate calls
