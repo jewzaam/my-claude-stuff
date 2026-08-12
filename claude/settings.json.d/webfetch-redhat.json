@@ -1,0 +1,11 @@
+{
+      "permissions": {
+            "allow": [
+                  "WebFetch(domain:docs.openshift.com)",
+                  "WebFetch(domain:www.redhat.com)",
+                  "WebFetch(domain:docs.redhat.com)",
+                  "WebFetch(domain:cloud.redhat.com)",
+                  "WebFetch(domain:access.redhat.com)"
+            ]
+      }
+}
