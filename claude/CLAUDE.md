@@ -55,7 +55,7 @@
 - **Completion standard** — nothing done until validated. Verify outcomes, not actions. Running command not done; confirming effect is
 - **Re-read before "done"** — before claiming completion, re-read user's original request. Check every stated requirement against what was delivered. Silently dropped requirements are the most frustrating failure mode
 - **"Try again" = retry same action** — user is likely fixing something external (hooks, permissions, config). Re-run the same command and say "retrying, assuming prior issue resolved." Only change approach if user explicitly says what to change or qualifies "try again" with new instructions
-- **Match existing structure** — editing documents, configs, or code: match existing organizational patterns. Never invent new sections, categories, or structural hierarchies unless explicitly asked. If existing structure has problems, flag them — don't silently "fix" by restructuring
+- **Match existing structure** — editing documents, configs, or code: match existing organizational patterns. Never invent new sections, categories, or structural hierarchies unless explicitly asked. If existing structure has problems, flag them — don't silently "fix" by restructuring. Matching a pattern is not licence to extend it — if the existing pattern is itself costly, say so instead of adding another instance
 
 ## Attribution
 - **Commits**: include `Assisted-by: <Tool> (<Model>)` (e.g., `Assisted-by: Claude Code (Claude Opus 4.6)`)
@@ -113,6 +113,8 @@ Decision rule: if it tells you *what to do in your code* → standards. If it te
 ## Persistence
 - **Never use memory** — memory does not cross physical environments or sandboxes. Do not write to memory directories
 - **Durable knowledge goes in project CLAUDE.md** — if something needs to persist, write it to the project's local `CLAUDE.md` (not `~/.claude/CLAUDE.md`)
+- **Project CLAUDE.md is a recurring token cost** — it loads into every session in that repo. Add only what costs real time to rediscover: external-system behavior, a place where the obvious change is wrong, a constraint with no trace in the code. Never add what a reader derives in under a minute from the code or the diff
+- **Default to a code comment, not CLAUDE.md** — never document a function's mechanism. If the entry would need editing when that code is refactored, it belongs at the code. Promote to project `CLAUDE.md` only if a session that never opens that file still needs to know
 - **Never edit `~/.claude/CLAUDE.md` directly** — that file is deployed from `my-claude-stuff/claude/CLAUDE.md` via `make reconcile`. Desired changes must be reported to the user, who will make adjustments or provide feedback
 
 ## Tool Usage
