@@ -4,8 +4,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -15,8 +14,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -26,8 +24,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -37,8 +34,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -48,8 +44,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -59,8 +54,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -70,8 +64,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -81,8 +74,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -92,8 +84,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -103,8 +94,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -114,8 +104,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -125,8 +114,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -136,8 +124,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -147,8 +134,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -158,8 +144,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -169,8 +154,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -180,8 +164,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -191,8 +174,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]
@@ -202,8 +184,7 @@
       {
         "hooks": [
           {
-            "_keep": "OTEL telemetry trigger: Claude Code emits no telemetry for a hook type with no registered hook, so this no-op exists solely to trigger it. Must survive settings stripping into a sandbox.",
-            "command": "python3 -c \"\"",
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
             "type": "command"
           }
         ]

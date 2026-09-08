@@ -3,15 +3,22 @@
 """Tests for claude/settings.json.d/ fragments.
 
 Hook retention is opt-in: openshell-sandbox's strip-settings.py keeps a hook
-only if it carries a truthy `_keep`, and drops everything else on the way into
-a sandbox. Nothing about that failure is loud -- an unmarked no-op is simply
-absent, and the telemetry it existed to trigger stops.
+only if its command carries a `# KEEP:` shell comment, and drops everything
+else on the way into a sandbox. Nothing about that failure is loud -- an
+unmarked no-op is simply absent, and the telemetry it existed to trigger stops.
 """
 
 import json
 import pathlib
+import re
 
 import pytest
+
+# A shell comment rather than a JSON key. Claude Code rewrites settings.json and
+# drops unrecognised keys nested inside hook objects -- `_keep` did not survive
+# `claude plugin disable`. The command string does, and the shell eats the
+# comment before the program sees it, so no hook gains an argument.
+KEEP_RE = re.compile(r"#\s*KEEP:\s*(\S.*)")
 
 FRAGMENTS = (
     pathlib.Path(__file__).resolve().parent.parent / "claude" / "settings.json.d"
@@ -39,7 +46,9 @@ class TestNoopHooksAreMarked:
 
     def test_every_noop_hook_is_marked(self):
         unmarked = [
-            event for event, hook in hooks_in(NOOP_FRAGMENT) if not hook.get("_keep")
+            event
+            for event, hook in hooks_in(NOOP_FRAGMENT)
+            if not KEEP_RE.search(hook.get("command", ""))
         ]
         assert not unmarked, (
             "these no-op hooks would be stripped out of a sandbox, silently "
@@ -47,12 +56,16 @@ class TestNoopHooksAreMarked:
         )
 
     def test_marker_says_why(self):
-        """A bare `true` survives stripping but tells the next reader nothing."""
+        """A bare `# KEEP` is retained but tells the next reader nothing."""
         for event, hook in hooks_in(NOOP_FRAGMENT):
-            marker = hook.get("_keep")
-            assert (
-                isinstance(marker, str) and marker.strip()
-            ), f"{event}: _keep should be a reason, not {marker!r}"
+            match = KEEP_RE.search(hook.get("command", ""))
+            assert match and match.group(1).strip(), f"{event}: need `# KEEP: <reason>`"
+
+    def test_marker_is_a_comment_not_an_argument(self):
+        """The marker must be shell-commented out, or it reaches argv."""
+        for event, hook in hooks_in(NOOP_FRAGMENT):
+            command = hook.get("command", "")
+            assert "#" in command.split("KEEP")[0][-4:], f"{event}: {command!r}"
 
     @pytest.mark.parametrize("fragment", sorted(FRAGMENTS.glob("hooks-*.json")))
     def test_fragments_are_valid_hook_shapes(self, fragment):
