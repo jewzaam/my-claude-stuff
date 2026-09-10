@@ -786,3 +786,76 @@ class TestConfTestGuard:
 
         monkeypatch.setattr(pathlib.Path, "resolve", bad_resolve)
         assert _is_blocked(pathlib.Path("/some/random/path")) is True
+
+
+class TestSkillFragments:
+    """Skills ship their own hook registration next to the hook script.
+
+    Copying it into settings.json.d/ would make this repo a second source of
+    truth that drifts the moment the skill changes its events or its path, so
+    reconcile collects it instead. The glob is relative to the destination
+    .claude dir, which is where skills are installed.
+    """
+
+    def _skill(self, dest_dir, name, fragment):
+        hooks = dest_dir / "skills" / name / "hooks"
+        hooks.mkdir(parents=True)
+        (hooks / "register.claude.json").write_text(json.dumps(fragment))
+
+    def test_no_skills_is_not_an_error(self, tmp_path):
+        src, dest = tmp_path / "src", tmp_path / "dest"
+        src.mkdir()
+        dest.mkdir()
+        (src / "settings.json").write_text('{"model": "x"}')
+        assert load_settings_with_fragments(src, dest) == {"model": "x"}
+
+    def test_skill_fragment_is_merged(self, tmp_path):
+        src, dest = tmp_path / "src", tmp_path / "dest"
+        src.mkdir()
+        dest.mkdir()
+        (src / "settings.json").write_text('{"model": "x"}')
+        self._skill(
+            dest,
+            "commit",
+            {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "c"}]}]}},
+        )
+        merged = load_settings_with_fragments(src, dest)
+        assert merged["model"] == "x"
+        assert merged["hooks"]["Stop"][0]["hooks"][0]["command"] == "c"
+
+    def test_skill_fragment_joins_repo_fragments(self, tmp_path):
+        """A skill hook must land beside the repo's own, not replace it."""
+        src, dest = tmp_path / "src", tmp_path / "dest"
+        (src / "settings.json.d").mkdir(parents=True)
+        dest.mkdir()
+        (src / "settings.json.d" / "own.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "Stop": [{"hooks": [{"type": "command", "command": "mine"}]}]
+                    }
+                }
+            )
+        )
+        self._skill(
+            dest,
+            "commit",
+            {
+                "hooks": {
+                    "Stop": [{"hooks": [{"type": "command", "command": "theirs"}]}]
+                }
+            },
+        )
+        commands = [
+            hook["command"]
+            for rule in load_settings_with_fragments(src, dest)["hooks"]["Stop"]
+            for hook in rule["hooks"]
+        ]
+        assert sorted(commands) == ["mine", "theirs"]
+
+    def test_dest_without_skills_dir_is_hermetic(self, tmp_path):
+        """No dest_dir means no globbing at all -- never the real ~/.claude."""
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "settings.json").write_text("{}")
+        assert load_settings_with_fragments(src) == {}

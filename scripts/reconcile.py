@@ -52,11 +52,26 @@ def merge_settings(dest_data: dict, src_data: dict) -> dict:
     return merged
 
 
-def load_settings_with_fragments(src_dir: Path) -> dict:
-    """Load settings.json and merge any settings.json.d/*.json fragments.
+# Skills that need a hook registered ship it as data next to the hook script,
+# so the skill is the only place the registration is written down. Copying it
+# into settings.json.d/ here would make this repo a second source that drifts
+# the moment the skill changes its events or its path.
+# Relative to the destination .claude directory, which is where skills are
+# installed. Deriving it from dest rather than $HOME also keeps the tests
+# hermetic: a temp destination simply has no skills to find.
+SKILL_FRAGMENTS = "skills/*/hooks/register.claude.json"
 
-    Either settings.json, settings.json.d/, or both may exist.
-    Returns empty dict only when neither is present.
+
+def skill_fragments(dest_dir: Path):
+    """Hook registrations shipped by installed skills, sorted by path."""
+    return sorted(dest_dir.glob(SKILL_FRAGMENTS))
+
+
+def load_settings_with_fragments(src_dir: Path, dest_dir: Path | None = None) -> dict:
+    """Load settings.json and merge fragments over it.
+
+    Fragments come from settings.json.d/*.json and from installed skills.
+    Any of the three sources may be absent; an empty dict means none existed.
     """
     base_path = src_dir / "settings.json"
     d_dir = src_dir / "settings.json.d"
@@ -65,11 +80,16 @@ def load_settings_with_fragments(src_dir: Path) -> dict:
     if base_path.exists():
         data = json.loads(base_path.read_text(encoding="utf-8"))
 
+    fragments = []
     if d_dir.is_dir():
-        for fragment_path in sorted(d_dir.glob("*.json"), key=lambda p: p.name):
-            fragment = json.loads(fragment_path.read_text(encoding="utf-8"))
-            data = merge_settings(data, fragment)
-            logger.debug("merged fragment: %s", fragment_path.name)
+        fragments += sorted(d_dir.glob("*.json"), key=lambda p: p.name)
+    if dest_dir is not None:
+        fragments += skill_fragments(dest_dir)
+
+    for fragment_path in fragments:
+        fragment = json.loads(fragment_path.read_text(encoding="utf-8"))
+        data = merge_settings(data, fragment)
+        logger.debug("merged fragment: %s", fragment_path)
 
     return data
 
@@ -166,7 +186,7 @@ def reconcile_settings(
         logger.warning("no settings.json or settings.json.d/ in %s", src_dir)
         return False
 
-    src_data = load_settings_with_fragments(src_dir)
+    src_data = load_settings_with_fragments(src_dir, dest_dir)
 
     if dest.exists():
         dest_data = json.loads(dest.read_text(encoding="utf-8"))
