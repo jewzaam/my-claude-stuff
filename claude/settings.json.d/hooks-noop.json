@@ -10,6 +10,56 @@
         ]
       }
     ],
+    "CwdChanged": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "DirectoryAdded": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Elicitation": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "ElicitationResult": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "InstructionsLoaded": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
     "Notification": [
       {
         "hooks": [
@@ -20,7 +70,47 @@
         ]
       }
     ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
     "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostModelSwitch": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [
       {
         "hooks": [
           {
@@ -51,6 +141,16 @@
       }
     ],
     "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreModelSwitch": [
       {
         "hooks": [
           {
@@ -150,7 +250,27 @@
         ]
       }
     ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
     "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "command": "python3 -c \"\"  # KEEP: OTEL telemetry trigger; no registered hook means no telemetry for this event",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
       {
         "hooks": [
           {
