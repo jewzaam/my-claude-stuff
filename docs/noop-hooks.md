@@ -15,15 +15,25 @@ appeared in Loki despite the `claude_session_permission` recording rule being lo
 
 ## Fix
 
-`claude/settings.json.d/hooks-noop.json` registers a no-op command (`python3 -c ""`) for every
-known hook event type:
+`claude/settings.json.d/hooks-noop.json` registers a no-op command (`python3 -c ""`) for 31
+of the 33 hook event types Claude Code accepts:
 
 - `ConfigChange`
+- `CwdChanged`
+- `DirectoryAdded`
+- `Elicitation`
+- `ElicitationResult`
+- `InstructionsLoaded`
 - `Notification`
+- `PermissionDenied`
 - `PermissionRequest`
+- `PostCompact`
+- `PostModelSwitch`
+- `PostToolBatch`
 - `PostToolUse`
 - `PostToolUseFailure`
 - `PreCompact`
+- `PreModelSwitch`
 - `PreToolUse`
 - `SessionEnd`
 - `SessionStart`
@@ -33,13 +43,25 @@ known hook event type:
 - `SubagentStart`
 - `SubagentStop`
 - `TaskCompleted`
+- `TaskCreated`
 - `TeammateIdle`
+- `UserPromptExpansion`
 - `UserPromptSubmit`
 - `WorktreeCreate`
 - `WorktreeRemove`
 
 The command exits 0 immediately and produces no output. Its only purpose is to satisfy the
 presence check so all event types flow through the OTEL pipeline.
+
+## Deliberate Exclusions
+
+Two of the 33 are registered nowhere on purpose:
+
+- `FileChanged` — only fires for paths registered through `watchPaths`, which a hook returns in its
+  own output. A no-op returns nothing, so it would never fire. Dead entry.
+- `MessageDisplay` — fires once per stream flush of an assistant message (`index` increments per
+  flush, `final` marks the last). One `python3` spawn per flush, mid-turn, on every message. The
+  telemetry is not worth the added latency.
 
 ## Consequence
 
