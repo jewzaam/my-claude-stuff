@@ -24,6 +24,11 @@ dev = [
     "types-psutil>=5.9",
 ]
 
+# The installable surface is the guards and nothing else. `scripts/` stays
+# repo-internal -- it is deployed to ~/.claude by `make reconcile`, and a
+# top-level package called `scripts` in someone's site-packages is a name
+# collision waiting to happen. Tests still import it: pytest puts the repo
+# root on sys.path.
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["scripts*"]
+include = ["harness_guards*"]

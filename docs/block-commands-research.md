@@ -1,6 +1,6 @@
 # Block Commands — Research Findings
 
-Raw research findings that informed the design of `scripts/block_commands.py`.
+Raw research findings that informed the design of `harness_guards/block_commands.py`.
 
 ## Community Project Survey
 
