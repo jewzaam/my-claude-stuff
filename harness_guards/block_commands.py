@@ -913,6 +913,35 @@ def check_cd_to_cwd(command: str, cwd: str) -> str | None:
     return None
 
 
+# Codex's `tool_input` schema is `true` -- any JSON -- and its exec tool is not
+# called `Bash`, so the command is found by key rather than by tool name.
+# `command` and `cmd` only: an `input` or `script` key would also match an
+# apply_patch body, and a README that contains the word sudo is not a command.
+#
+# ponytail: the real Codex key is unconfirmed. Codex cannot run in the personal
+# sandbox this was written in (no OpenAI host is in the network policy), so no
+# live payload was available. Confirm against one and drop whichever guess is
+# wrong.
+_COMMAND_KEYS = ("command", "cmd")
+
+
+def extract_command(tool_input: object) -> str:
+    """Return the shell command in a tool input, or an empty string."""
+    if not isinstance(tool_input, dict):
+        return ""
+    for key in _COMMAND_KEYS:
+        value = tool_input.get(key)
+        if isinstance(value, str):
+            return value
+        # An argv list, e.g. ["bash", "-lc", "cd x && git push"]. Joined on
+        # spaces, not with shlex.join: that quotes the script into a single
+        # token, and the chain splitters below respect quotes, so the chained
+        # command inside would never be seen.
+        if isinstance(value, list) and all(isinstance(item, str) for item in value):
+            return " ".join(value)
+    return ""
+
+
 def main() -> None:
     """Read tool input from stdin and block restricted commands."""
     try:
@@ -921,11 +950,7 @@ def main() -> None:
     except (json.JSONDecodeError, OSError):
         return
 
-    tool_input = data.get("tool_input", {})
-    if isinstance(tool_input, dict):
-        command = tool_input.get("command", "")
-    else:
-        command = data.get("command", "")
+    command = extract_command(data.get("tool_input", {})) or extract_command(data)
     if not command:
         return
 

@@ -3,14 +3,19 @@
 """PreToolUse hook that blocks access to sensitive directories and files.
 
 Reads JSON from stdin with tool_name, tool_input, and cwd. Extracts paths
-from structured tool inputs (Read, Edit, Write, Glob, Grep, NotebookEdit)
-and from Bash commands (with ~/,$HOME expansion and cwd-relative resolution).
+from shell commands (with ~/, $HOME expansion and cwd-relative resolution)
+and from structured tool inputs (Read, Edit, Write, Glob, Grep, NotebookEdit).
 Checks resolved absolute paths against blocked patterns.
-Exits 2 to block, 0 to allow.
+Exits 2 to block, 0 to allow -- both Claude Code and Codex read that.
 
-Blocked directories: ~/.ssh, ~/.aws, ~/.kube, ~/.ocm
-Blocked files: ~/.claude/*credentials*
+Blocked directories: ~/.ssh, ~/.aws, ~/.kube, ~/.ocm, ~/.config/gws
+Blocked files: ~/.claude/*credentials*, *.kdbx, .env
 Blocked URIs: file:// in WebFetch (use Read tool instead)
+
+The file patterns mirror the Read/Grep entries in claude/settings.json.d/
+deny.json, which Codex has no equivalent of -- its config.toml carries no
+deny list. Enforcing them here covers both harnesses, and on the Claude side
+widens them from Read/Grep-only to every tool this hook sees.
 """
 
 import json
@@ -28,6 +33,11 @@ BLOCKED_PATH_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(rf"^{_HOME}/\.kube(/|$)"), "~/.kube"),
     (re.compile(rf"^{_HOME}/\.ocm(/|$)"), "~/.ocm"),
     (re.compile(rf"^{_HOME}/\.claude/.*credentials"), "credentials file"),
+    (re.compile(rf"^{_HOME}/\.config/gws(/|$)"), "~/.config/gws"),
+    # Not home-anchored: deny.json matches these anywhere (`**/*.kdbx`,
+    # `**/.env`), and a checked-out .env is as sensitive as one in $HOME.
+    (re.compile(r"\.kdbx$"), "KeePass database"),
+    (re.compile(r"/\.env$"), ".env file"),
 ]
 
 # Tools with known path fields
@@ -113,13 +123,46 @@ def extract_paths_bash(command: str, cwd: str) -> list[str]:
     return resolved
 
 
+# Codex's `tool_input` schema is `true` -- any JSON -- and its exec tool is not
+# called `Bash`, so the command is found by key rather than by tool name.
+# `command` and `cmd` only: an `input` or `script` key would also match an
+# apply_patch body, and a README that contains the word sudo is not a command.
+#
+# ponytail: the real Codex key is unconfirmed. Codex cannot run in the personal
+# sandbox this was written in (no OpenAI host is in the network policy), so no
+# live payload was available. Confirm against one and drop whichever guess is
+# wrong.
+_COMMAND_KEYS = ("command", "cmd")
+
+
+def extract_command(tool_input: object) -> str:
+    """Return the shell command in a tool input, or an empty string."""
+    if not isinstance(tool_input, dict):
+        return ""
+    for key in _COMMAND_KEYS:
+        value = tool_input.get(key)
+        if isinstance(value, str):
+            return value
+        # An argv list, e.g. ["bash", "-lc", "cd x && git push"]. Joined on
+        # spaces, not with shlex.join: that quotes the script into a single
+        # token, and the chain splitters below respect quotes, so the chained
+        # command inside would never be seen.
+        if isinstance(value, list) and all(isinstance(item, str) for item in value):
+            return " ".join(value)
+    return ""
+
+
 def extract_paths(tool_name: str, tool_input: dict, cwd: str) -> list[str]:
     """Extract all path candidates from a tool invocation."""
-    if tool_name == "Bash":
-        command = tool_input.get("command", "")
-        if not command:
-            return []
+    # Any tool carrying a command is treated as a shell tool. Claude Code calls
+    # it Bash; Codex does not, and renames its exec tool between releases, so
+    # keying on the command is what makes one hook serve both.
+    command = extract_command(tool_input)
+    if command:
         return extract_paths_bash(command, cwd)
+    # ponytail: the structured map is still Claude's tool names. Codex's
+    # equivalents (apply_patch and whatever its read tool is called) fall
+    # through to no paths -- see _TOOL_PATH_FIELDS above.
     return extract_paths_structured(tool_name, tool_input, cwd)
 
 
@@ -137,14 +180,13 @@ def main() -> None:
         return
     cwd = data.get("cwd", ".")
 
-    if tool_name == "Bash":
-        command = tool_input.get("command", "")
-        if command and _has_command_chaining(command):
-            print(
-                "BLOCKED: semicolon command chaining is not allowed",
-                file=sys.stderr,
-            )
-            sys.exit(2)
+    command = extract_command(tool_input)
+    if command and _has_command_chaining(command):
+        print(
+            "BLOCKED: semicolon command chaining is not allowed",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     if tool_name == "WebFetch":
         url = tool_input.get("url", "")

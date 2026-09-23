@@ -1,6 +1,6 @@
 # GWS CLI Mutation Blocking
 
-Defense-in-depth blocking for the `gws` (Google Workspace CLI) tool, implemented as PreToolUse hook patterns in `scripts/block_commands.py`.
+Defense-in-depth blocking for the `gws` (Google Workspace CLI) tool, implemented as PreToolUse hook patterns in `harness_guards/block_commands.py`.
 
 ## Threat Model
 

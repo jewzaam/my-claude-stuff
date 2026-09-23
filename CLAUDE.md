@@ -13,6 +13,14 @@ Claude Code configuration management repo. The `claude/` directory is the source
 ## Architecture
 
 - `scripts/` — Python hook scripts and utilities (the main code)
+- `harness_guards/` — the PreToolUse guards, and **the only thing this repo
+  installs**: `pyproject.toml` ships this package and not `scripts/`.
+  my-codex-stuff depends on the distribution rather than copying the files, so
+  both harnesses run one definition. Hooks invoke it as
+  `python3 -m harness_guards.block_commands`, never by path — which means a
+  rename or a bad module name fails as exit 1 (a hook error, not a block) and
+  the guard silently stops guarding. `tests/test_settings_fragments.py` runs
+  each registered module through `-m` for that reason.
 - `claude/` — source-of-truth config deployed to `~/.claude/` via `make reconcile`
 - `claude/settings.json.d/` — global Claude Code settings fragments (hooks, permissions, plugins)
 - `tests/` — pytest tests with conftest.py guards that block writes to real `~/.claude/`

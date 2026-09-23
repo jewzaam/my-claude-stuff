@@ -44,20 +44,20 @@ clean:  ## Remove build artifacts
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
 format: install-dev  ## Format code with black and JSON files
-	$(PYTHON) -m black scripts tests
+	$(PYTHON) -m black harness_guards scripts tests
 	@for f in claude/settings.json.d/*.json; do \
 		[ -f "$$f" ] || continue; \
 		jq -S 'walk(if type == "array" then sort else . end)' "$$f" > "$$f.tmp" && mv "$$f.tmp" "$$f"; \
 	done
 
 test-format: install-dev  ## Check formatting without modifying files
-	$(PYTHON) -m black --check scripts tests
+	$(PYTHON) -m black --check harness_guards scripts tests
 
 test-lint: install-dev  ## Lint with flake8
-	$(PYTHON) -m flake8 --max-line-length=88 --extend-ignore=E203,W503 scripts tests
+	$(PYTHON) -m flake8 --max-line-length=88 --extend-ignore=E203,W503 harness_guards scripts tests
 
 test-typecheck: install-dev  ## Type check with mypy
-	$(PYTHON) -m mypy scripts
+	$(PYTHON) -m mypy harness_guards scripts
 
 test-unit: install-dev  ## Run pytest
 	$(PYTHON) -m pytest
@@ -66,7 +66,7 @@ test-verbose: install-dev  ## Run pytest with verbose output
 	$(PYTHON) -m pytest -v
 
 test-coverage: install-dev  ## Run pytest with coverage
-	$(PYTHON) -m pytest --cov=scripts --cov-report=term --cov-fail-under=80
+	$(PYTHON) -m pytest --cov=harness_guards --cov=scripts --cov-report=term --cov-fail-under=80
 
 migrate:  ## Merge legacy data dirs into my-claude-stuff-data/
 	@mkdir -p $(DATA_DIR)

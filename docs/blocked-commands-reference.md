@@ -1,6 +1,6 @@
 # Blocked Commands Reference
 
-Complete reference for every blocked pattern in `scripts/block_commands.py`.
+Complete reference for every blocked pattern in `harness_guards/block_commands.py`.
 
 ## Git Commands
 
@@ -116,7 +116,7 @@ The `gws` CLI has 15 blocked patterns covering Gmail, Calendar, Chat, Drive, She
 
 ## Blocked Paths
 
-A separate hook (`scripts/block_paths.py`) blocks access to sensitive directories and files across **all tools** (Read, Edit, Write, Glob, Grep, NotebookEdit, Bash). This complements command blocking by protecting at the path level.
+A separate hook (`harness_guards/block_paths.py`) blocks access to sensitive directories and files across **all tools** (Read, Edit, Write, Glob, Grep, NotebookEdit, Bash). This complements command blocking by protecting at the path level.
 
 ### Blocked Directories
 
@@ -126,24 +126,32 @@ A separate hook (`scripts/block_paths.py`) blocks access to sensitive directorie
 | `~/.aws(/\|$)` | AWS credentials and config | Encrypted credential store (encfs) |
 | `~/.kube(/\|$)` | Kubernetes config | Encrypted credential store (encfs) |
 | `~/.ocm(/\|$)` | OCM credentials | Encrypted credential store (encfs) |
+| `~/.config/gws(/\|$)` | gws CLI OAuth tokens | Mirrors the `Read`/`Grep` deny in `deny.json` |
 
 ### Blocked Files
 
 | Pattern | Description | Rationale |
 |---------|-------------|-----------|
 | `~/.claude/.*credentials` | Credentials files under ~/.claude | Sensitive authentication data |
+| `\.kdbx$` | KeePass database, anywhere | Mirrors the `Read`/`Grep` deny in `deny.json` |
+| `/\.env$` | `.env` file, anywhere | Mirrors the `Read`/`Grep` deny in `deny.json` |
+
+The last three mirror `claude/settings.json.d/deny.json`, which Codex has no
+equivalent of — its `config.toml` carries no deny list. Enforcing them in the
+hook covers both harnesses, and on the Claude side widens them from `Read`/`Grep`
+to every tool the hook sees.
 
 ### How It Works
 
+- **Any tool carrying a command** (`command` or `cmd`, string or argv list): `~/` and `$HOME/` are expanded, tokens are extracted, and each is resolved against `cwd`. Keyed on the field, not on the tool name — Claude Code calls it `Bash`, Codex does not.
 - **Structured tools** (Read, Edit, Write, Glob, Grep, NotebookEdit): path fields are extracted and resolved against the working directory
-- **Bash tool**: `~/` and `$HOME/` are expanded, tokens are extracted, and each is resolved against `cwd`
 - **Other tools**: pass through without checks
 
 Directory patterns use `(/|$)` to match the directory itself and anything beneath it, without matching near-misses like `~/.ssh-backup`.
 
 ### Adding a Rule
 
-Add a `(compiled_regex, description)` tuple to `BLOCKED_PATH_PATTERNS` in `scripts/block_paths.py`:
+Add a `(compiled_regex, description)` tuple to `BLOCKED_PATH_PATTERNS` in `harness_guards/block_paths.py`:
 
 ```python
 (re.compile(rf"^{_HOME}/\.new_dir(/|$)"), "~/.new_dir"),

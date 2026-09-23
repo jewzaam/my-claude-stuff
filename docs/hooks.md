@@ -20,8 +20,18 @@ Configuration lives in `claude/settings.json.d/hooks-my-claude-stuff.json`.
 
 | Event | Script | Purpose |
 |-------|--------|---------|
-| `PreToolUse` (Bash) | `block_commands.py` | Block destructive commands. See `docs/block-commands-design.md` for details. |
-| `PreToolUse` (all) | `block_paths.py` | Block access to sensitive directories (~/.ssh, ~/.aws, ~/.kube, ~/.ocm) and credential files. See `docs/blocked-commands-reference.md` for details. |
+| `PreToolUse` (Bash) | `python3 -m harness_guards.block_commands` | Block destructive commands. See `docs/block-commands-design.md` for details. |
+| `PreToolUse` (all) | `python3 -m harness_guards.block_paths` | Block access to sensitive directories (~/.ssh, ~/.aws, ~/.kube, ~/.ocm, ~/.config/gws), credential files, `*.kdbx` and `.env`. See `docs/blocked-commands-reference.md` for details. |
+
+Both live in `harness_guards/`, the one package this repo installs. Unlike
+everything in `scripts/`, they are **not** deployed by file copy: my-codex-stuff
+installs this distribution and registers the same two modules, so Codex and
+Claude Code run one definition. They find the command by key rather than by tool
+name, because Codex does not call its exec tool `Bash`.
+
+The modules must be importable by whatever `python3` the harness runs. If they
+are not, `python3 -m` exits 1 — a hook error, not a block — and the guards are
+simply off.
 
 ### Third-party hooks
 
@@ -41,7 +51,7 @@ No-op hooks covering every event type. Required so Claude Code emits OTEL data f
 presence of a hook gates OTEL emission. See [`docs/noop-hooks.md`](noop-hooks.md) for full
 explanation.
 
-## Block Commands Hook (`scripts/block_commands.py`)
+## Block Commands Hook (`harness_guards/block_commands.py`)
 
 Blocks destructive shell commands before execution. See `docs/block-commands-design.md` for design rationale and `docs/blocked-commands-reference.md` for the full pattern reference.
 

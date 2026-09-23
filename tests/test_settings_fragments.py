@@ -8,9 +8,13 @@ else on the way into a sandbox. Nothing about that failure is loud -- an
 unmarked no-op is simply absent, and the telemetry it existed to trigger stops.
 """
 
+import importlib.util
+import io
 import json
 import pathlib
 import re
+import runpy
+import sys
 
 import pytest
 
@@ -73,3 +77,82 @@ class TestNoopHooksAreMarked:
         for event, hook in hooks_in(fragment):
             assert hook.get("type") == "command", f"{fragment.name} {event}: {hook}"
             assert hook.get("command"), f"{fragment.name} {event}: empty command"
+
+
+GUARD_FRAGMENT = FRAGMENTS / "hooks-my-claude-stuff.json"
+MODULE_RE = re.compile(r"^python3 -m (harness_guards\.\w+)$")
+
+# One command each guard must refuse, so running it through `-m` proves the
+# module both imports and still guards. No single command trips both: a
+# blocked command is not a blocked path.
+TRIPWIRES = {
+    "harness_guards.block_commands": "sudo rm -rf /",
+    "harness_guards.block_paths": "cat ~/.ssh/id_rsa",
+}
+
+
+class TestGuardHooksRunAsModules:
+    """The guards are installed as a dependency, so the hook names a module
+    rather than a path. Nothing in ~/.claude has to exist for Codex to run the
+    same two guards, and neither harness has to know where pip put them.
+
+    A wrong module name fails quietly: `python3 -m` exits 1 on ImportError, and
+    Claude Code only treats exit 2 as a block, so the guard would simply stop
+    guarding. These tests are what makes that loud.
+    """
+
+    def test_guards_are_module_invocations(self):
+        commands = [hook["command"] for _, hook in hooks_in(GUARD_FRAGMENT)]
+        assert commands, f"no hooks in {GUARD_FRAGMENT}"
+        for command in commands:
+            assert MODULE_RE.match(command), f"not a module invocation: {command!r}"
+
+    def test_named_modules_exist(self):
+        for _, hook in hooks_in(GUARD_FRAGMENT):
+            module = MODULE_RE.match(hook["command"]).group(1)
+            assert importlib.util.find_spec(module), f"cannot import {module}"
+
+    def test_named_modules_block_when_run(self, monkeypatch):
+        """End to end through `-m`: argv-list payload in, exit 2 out.
+
+        runpy rather than subprocess -- conftest blocks subprocess outright,
+        and run_name="__main__" is what `python3 -m` does anyway, so this
+        exercises the same entry point the hook uses.
+
+        The module is dropped from sys.modules first. Another test module
+        imports it, and runpy warns when it re-executes something already
+        imported; a real `python3 -m` starts with it absent, so clearing it is
+        the faithful thing rather than a way to quiet the warning. monkeypatch
+        puts the entry back afterwards.
+        """
+        modules = [
+            MODULE_RE.match(hook["command"]).group(1)
+            for _, hook in hooks_in(GUARD_FRAGMENT)
+        ]
+        # A third guard registered with no tripwire here fails this, rather
+        # than quietly going untested.
+        assert set(modules) == set(TRIPWIRES), f"no tripwire for {modules}"
+        for module in modules:
+            payload = json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {"command": ["bash", "-lc", TRIPWIRES[module]]},
+                    "cwd": "/tmp",
+                }
+            )
+            monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
+            monkeypatch.delitem(sys.modules, module, raising=False)
+            with pytest.raises(SystemExit) as exc_info:
+                runpy.run_module(module, run_name="__main__")
+            assert exc_info.value.code == 2, module
+
+    def test_guards_are_not_marked_keep(self):
+        """Host-only. A sandbox runs with permissions bypassed on purpose."""
+        marked = [
+            hook["command"]
+            for _, hook in hooks_in(GUARD_FRAGMENT)
+            if KEEP_RE.search(hook["command"])
+        ]
+        assert (
+            not marked
+        ), f"these would ship host restrictions into a sandbox: {marked}"
