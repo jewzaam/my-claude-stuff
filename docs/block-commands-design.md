@@ -100,7 +100,10 @@ Used in Windows patterns like `cipher /a /w:C:\temp` where `/a` is a flag before
 | Command | Allowed | Blocked | Rationale |
 |---------|---------|---------|-----------|
 | `git branch` | `--list`, `-a`, `-r`, `-v`, `--contains`, bare `git branch` | `-d`, `-D`, `--delete`, `-m`, `-M`, `--move`, `-c`, `-C`, `--copy` | Read-only operations are safe |
-| `git stash` | `list`, `show` | Everything else (bare `stash`, `drop`, `clear`, `pop`, `apply`) | `list` and `show` are read-only. Bare `stash` implicitly pushes (modifies state). `pop`/`apply` modify working tree. |
+| `git stash` | Everything except `drop`/`clear` | `drop`, `clear` | Only `drop` and `clear` destroy work. `push`/`pop`/`apply` move it between the stash and the working tree, recoverably. |
+| `git commit` | `-a`, `-am`, `-m` | `--amend` | Only `--amend` rewrites history. `-a` stages tracked files, which `git add` already guards. |
+| `sed` | Every read-only form | `-i`, `--in-place` | Only the in-place form writes to the file. |
+| `rm` / `mv` | `podman run --rm`, `docker run --rm` | Everything else | The `(?<!-)` lookbehind keeps the container flag out. |
 | `git clean` | `-n`, `--dry-run` | Everything else | Dry-run is a safe preview that shows what *would* be deleted |
 | `dd` | `of=test.img` (file output) | `of=/dev/*` (device output) | Writing to files is legitimate; writing to block devices is destructive |
 | `sc` | `query`, `start`, `stop` | `delete` | Only `delete` is irreversible |

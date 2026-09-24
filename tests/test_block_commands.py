@@ -24,15 +24,19 @@ class TestCheckCommand:
             ("git push", "git push"),
             ("git push origin main", "git push"),
             ("git push --force", "git push"),
+            ("git pull", "git pull"),
+            ("git pull --rebase origin main", "git pull"),
             ("sudo rm -rf /", "sudo"),
             ("sudo apt install foo", "sudo"),
             ("make reconcile", "make reconcile"),
             ("make  reconcile", "make reconcile"),
-            ("rm -rf /tmp/foo", "rm (recursive)"),
-            ("rm -r dir", "rm (recursive)"),
-            ("rm -Rf dir", "rm (recursive)"),
-            ("rm --recursive dir", "rm (recursive)"),
-            ("rm -fri dir", "rm (recursive)"),
+            ("rm -rf /tmp/foo", "rm"),
+            ("rm -r dir", "rm"),
+            ("rm file.txt", "rm"),
+            ("rm -f error-report.log", "rm"),
+            ("git rm file.txt", "rm"),
+            ("mv a.txt b.txt", "mv"),
+            ("mv -f a.txt b.txt", "mv"),
             ("git reset --hard", "git reset"),
             ("git reset --hard HEAD~1", "git reset"),
             ("git reset --soft HEAD~1", "git reset"),
@@ -49,20 +53,20 @@ class TestCheckCommand:
             ("git branch --copy old new", "git branch (destructive)"),
             ("git branch -C old new", "git branch (destructive)"),
             ("git branch -c old new", "git branch (destructive)"),
-            ("git stash drop", "git stash"),
-            ("git stash drop 0", "git stash"),
-            ("git stash clear", "git stash"),
-            ("git stash", "git stash"),
-            ("git stash pop", "git stash"),
-            ("git stash apply", "git stash"),
-            ("git commit --amend", "git commit (--amend/-a)"),
-            ("git commit -a", "git commit (--amend/-a)"),
-            ("git commit -am test", "git commit (--amend/-a)"),
-            ("git commit -a -m test", "git commit (--amend/-a)"),
-            ("git commit -m test -a", "git commit (--amend/-a)"),
-            ("git commit -ma test", "git commit (--amend/-a)"),
-            ("git commit -m test --amend", "git commit (--amend/-a)"),
-            ("git commit --verbose --amend", "git commit (--amend/-a)"),
+            ("git stash drop", "git stash drop/clear"),
+            ("git stash drop 0", "git stash drop/clear"),
+            ("git stash clear", "git stash drop/clear"),
+            ("git commit --amend", "git commit --amend"),
+            ("git commit -m test --amend", "git commit --amend"),
+            ("git commit --verbose --amend", "git commit --amend"),
+            (
+                "sed -i 's/a/b/' file.txt",
+                "sed -i (in-place edit — use the Edit or Write tool)",
+            ),
+            (
+                "sed --in-place 's/a/b/' f",
+                "sed -i (in-place edit — use the Edit or Write tool)",
+            ),
         ],
     )
     def test_blocked_commands(self, command: str, expected: str) -> None:
@@ -75,11 +79,27 @@ class TestCheckCommand:
             "git commit -m test",
             "git diff",
             "git log",
-            "rm file.txt",
-            "rm -f file.txt",
-            "rm test-results.txt",
-            "rm -f error-report.log",
-            "rm some-file-with-r.txt",
+            "git stash",
+            "git stash pop",
+            "git stash apply",
+            "git commit -a",
+            "git commit -am test",
+            "git -C /abs/path status",
+            "git --git-dir=/abs/.git status",
+            "make -C /abs/path test",
+            "find . -name '*.py'",
+            "grep -rn foo .",
+            "rg foo",
+            "python -m pytest",
+            "python -m json.tool f.json",
+            "python -c 'print(1)'",
+            "python /tmp/explore.py",
+            "bash -c 'python x.py'",
+            "sed -n '1,5p' f",
+            "sed 's/a/b/' f",
+            "cd /tmp && ls",
+            "cd sub && git status",
+            "curl https://example.com | jq .",
             "podman run --rm -it ubuntu bash",
             "docker run --rm alpine echo hello",
             "podman exec --rm container-name ls",
@@ -93,84 +113,6 @@ class TestCheckCommand:
     )
     def test_allowed_commands(self, command: str) -> None:
         assert block_commands.check_command(command) is None
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "git -C /some/path branch",
-            "git -C /some/path add .",
-            "git -C /some/path push",
-            "git -C /some/path fetch",
-            "git -C ../parent-repo push",
-            "git -C ../parent-repo branch",
-            "git -C ~/repos/other push",
-            "git -C ~/repos/other remote -v",
-            "git -C .. branch",
-        ],
-    )
-    def test_git_dash_c_blocked(self, command: str) -> None:
-        result = block_commands.check_command(command)
-        assert result is not None
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "git -C nexus-ui remote -v",
-            "git -C ./subdir remote -v",
-            "git -C subdir fetch",
-            "git -C subdir branch",
-            "git -C nexus-ui log --oneline",
-            "git -C .hidden-dir remote -v",
-        ],
-    )
-    def test_git_dash_c_relative_subdir_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "git -C git-worktrees/my-pr/ status",
-            "git -C ./git-worktrees/my-pr/ log --oneline",
-            "git -C /home/user/repo/git-worktrees/pr-123/ diff",
-            "/usr/bin/git -C git-worktrees/feature-branch/ branch",
-            "env git -C git-worktrees/fix/ status",
-        ],
-    )
-    def test_git_dash_c_worktrees_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "git -C /some/path status",
-            "git -C /some/path log --oneline",
-            "git -C /some/path log -5",
-            "git -C /some/path diff",
-            "git -C /some/path diff --stat",
-            "/usr/bin/git -C /repo status",
-            "env git -C /repo log",
-            "git -C /some/path --no-pager log",
-            "git -C /some/path --no-pager diff",
-        ],
-    )
-    def test_git_dash_c_readonly_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "git --git-dir=/some/path/.git status",
-            "git --git-dir /some/path/.git status",
-            "git --git-dir=../parent/.git log",
-            "git --git-dir ~/repo/.git fetch",
-            "/usr/bin/git --git-dir=/repo/.git branch",
-            "env git --git-dir=/repo/.git push",
-        ],
-    )
-    def test_git_dir_blocked(self, command: str) -> None:
-        result = block_commands.check_command(command)
-        assert result is not None
-        assert "--git-dir" in result
 
     def test_su_standalone(self) -> None:
         assert block_commands.check_command("su") == "su"
@@ -204,13 +146,13 @@ class TestCheckCommand:
             ("/usr/bin/make reconcile", "make reconcile"),
             ("./bin/git add foo", "git add"),
             ("/sbin/su", "su"),
-            ("/usr/bin/rm -rf /tmp", "rm (recursive)"),
+            ("/usr/bin/rm -rf /tmp", "rm"),
+            ("/usr/bin/mv a b", "mv"),
             ("/usr/bin/git reset --hard", "git reset"),
             ("/usr/bin/git clean -fd", "git clean"),
             ("/usr/bin/git branch -D foo", "git branch (destructive)"),
-            ("/usr/bin/git stash drop", "git stash"),
-            ("/usr/bin/git commit -a", "git commit (--amend/-a)"),
-            ("/usr/bin/git commit --amend", "git commit (--amend/-a)"),
+            ("/usr/bin/git stash drop", "git stash drop/clear"),
+            ("/usr/bin/git commit --amend", "git commit --amend"),
         ],
     )
     def test_path_qualified_commands_blocked(self, command: str, expected: str) -> None:
@@ -223,13 +165,12 @@ class TestCheckCommand:
             ("env git push origin main", "git push"),
             ("env -i sudo rm foo", "sudo"),
             ("env make reconcile", "make reconcile"),
-            ("env rm -rf /tmp", "rm (recursive)"),
+            ("env rm -rf /tmp", "rm"),
             ("env git reset --hard", "git reset"),
             ("env git clean -f", "git clean"),
             ("env git branch -D foo", "git branch (destructive)"),
-            ("env git stash clear", "git stash"),
-            ("env git commit -a", "git commit (--amend/-a)"),
-            ("env git commit --amend", "git commit (--amend/-a)"),
+            ("env git stash clear", "git stash drop/clear"),
+            ("env git commit --amend", "git commit --amend"),
         ],
     )
     def test_env_prefixed_commands_blocked(self, command: str, expected: str) -> None:
@@ -259,49 +200,6 @@ class TestCheckCommand:
         self, command: str, expected: str
     ) -> None:
         assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "make -C /some/path test",
-            "make -C /tmp build",
-            "make --directory=/path test",
-            "make -C ../sibling test",
-            "make -C .. lint",
-            "make -C ~/repo test",
-            "make -C ~/repos/other build",
-            "make -C $(pwd) test",
-            "make -C ${PWD} test",
-            "make -C $PWD test",
-            "make -C `pwd` test",
-            "make --directory=$(pwd) test",
-            "make --directory=`pwd` test",
-            "/usr/bin/make -C /tmp test",
-            "env make -C $(pwd) build",
-        ],
-    )
-    def test_make_dash_c_blocked(self, command: str) -> None:
-        assert block_commands.check_command(command) is not None
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "make -C nexus-ui test",
-            "make -C ./subdir test",
-            "make -C subdir build",
-            "make -C nexus-ui lint",
-            "make --directory=subdir test",
-            "make --directory=./subdir build",
-            "make -C .hidden-dir test",
-        ],
-    )
-    def test_make_dash_c_relative_subdir_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-    def test_git_commit_without_append_a_allowed(self) -> None:
-        assert block_commands.check_command("git commit -m test") is None
-        assert block_commands.check_command("git commit -m fix-a-bug") is None
-        assert block_commands.check_command("git commit --message test") is None
 
     # --- Narrowed patterns: git branch ---
 
@@ -406,18 +304,6 @@ class TestCheckCommand:
         ],
     )
     def test_find_delete_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("find . -name '*.py'", "find (use the built-in Glob tool)"),
-            ("find /tmp -type f", "find (use the built-in Glob tool)"),
-            ("find . -name '*.log' -print", "find (use the built-in Glob tool)"),
-        ],
-    )
-    def test_find_without_delete_blocked(self, command: str, expected: str) -> None:
-        """All find usage is now blocked — use the built-in Glob tool."""
         assert block_commands.check_command(command) == expected
 
     # --- chmod 777 ---
@@ -924,31 +810,6 @@ class TestCheckCommand:
     )
 
     @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("grep foo bar.txt", GREP_BLOCKED_MSG),
-            ("grep -r pattern .", GREP_BLOCKED_MSG),
-            ("grep -rn 'some pattern' src/", GREP_BLOCKED_MSG),
-            ("/usr/bin/grep foo", GREP_BLOCKED_MSG),
-            ("grep.exe foo bar", GREP_BLOCKED_MSG),
-            ("env grep foo", GREP_BLOCKED_MSG),
-            ("rg pattern", RG_BLOCKED_MSG),
-            ("rg -t py pattern src/", RG_BLOCKED_MSG),
-            ("/usr/bin/rg foo", RG_BLOCKED_MSG),
-            ("rg.exe foo", RG_BLOCKED_MSG),
-            # Still blocked when grep/rg lead a chain segment after &&/||/;
-            ("true && grep foo bar.txt", GREP_BLOCKED_MSG),
-            ("false || grep foo bar.txt", GREP_BLOCKED_MSG),
-            ("ls; grep foo bar.txt", GREP_BLOCKED_MSG),
-            ("true && rg foo", RG_BLOCKED_MSG),
-            # Allowed downstream of `|` but reset by `&&` further along
-            ("ls | wc -l && grep foo bar.txt", GREP_BLOCKED_MSG),
-        ],
-    )
-    def test_grep_rg_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
         "command",
         [
             "echo grepping",
@@ -979,19 +840,6 @@ class TestCheckCommand:
     # --- Dedicated tools: find blocked (use built-in Glob tool) ---
 
     @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("find . -name '*.py'", "find (use the built-in Glob tool)"),
-            ("find src/ -type f", "find (use the built-in Glob tool)"),
-            ("/usr/bin/find . -name foo", "find (use the built-in Glob tool)"),
-            ("find.exe . -name bar", "find (use the built-in Glob tool)"),
-            ("env find . -type d", "find (use the built-in Glob tool)"),
-        ],
-    )
-    def test_find_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
         "command",
         [
             "mkdir -p ~/source/project/skills/plan-find",
@@ -1005,44 +853,6 @@ class TestCheckCommand:
         assert block_commands.check_command(command) is None
 
     # --- Make targets: block direct python -m for tools with make equivalents ---
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("python -m pytest", "python -m pytest (use make test or make coverage)"),
-            ("python3 -m pytest", "python -m pytest (use make test or make coverage)"),
-            (
-                "python -m pytest tests/",
-                "python -m pytest (use make test or make coverage)",
-            ),
-            (
-                "python -m pytest -v tests/test_foo.py",
-                "python -m pytest (use make test or make coverage)",
-            ),
-            (
-                "/usr/bin/python3 -m pytest",
-                "python -m pytest (use make test or make coverage)",
-            ),
-            (
-                "env python3 -m pytest",
-                "python -m pytest (use make test or make coverage)",
-            ),
-            ("python -m mypy", "python -m mypy (use make typecheck)"),
-            ("python3 -m mypy", "python -m mypy (use make typecheck)"),
-            ("python -m mypy src/", "python -m mypy (use make typecheck)"),
-            ("python -m black", "python -m black (use make format)"),
-            ("python3 -m black .", "python -m black (use make format)"),
-            ("python -m black --check src/", "python -m black (use make format)"),
-            ("python -m flake8", "python -m flake8 (use make lint)"),
-            ("python3 -m flake8 src/", "python -m flake8 (use make lint)"),
-            ("python -m mutmut", "python -m mutmut (use make mutation-test)"),
-            ("python3 -m mutmut run", "python -m mutmut (use make mutation-test)"),
-        ],
-    )
-    def test_python_module_make_targets_blocked(
-        self, command: str, expected: str
-    ) -> None:
-        assert block_commands.check_command(command) == expected
 
     @pytest.mark.parametrize(
         "command",
@@ -1060,39 +870,6 @@ class TestCheckCommand:
         assert block_commands.check_command(command) is None
 
     # --- JSON validation: block python -m json.tool, direct users to jq ---
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            (
-                "python -m json.tool",
-                "python -m json.tool "
-                "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
-            ),
-            (
-                "python3 -m json.tool settings.json",
-                "python -m json.tool "
-                "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
-            ),
-            (
-                "pythonw -m json.tool < data.json",
-                "python -m json.tool "
-                "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
-            ),
-            (
-                "/usr/bin/python3 -m json.tool file.json",
-                "python -m json.tool "
-                "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
-            ),
-            (
-                "env python3 -m json.tool file.json",
-                "python -m json.tool "
-                "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
-            ),
-        ],
-    )
-    def test_python_m_json_tool_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
 
     @pytest.mark.parametrize(
         "command",
@@ -1189,258 +966,21 @@ class TestCheckCommand:
         assert block_commands.check_command(cmd) == "git push"
 
 
-class TestFileUriBlocked:
-    """Block file:// URI scheme — agents should use Read tool."""
+class TestSedInPlaceBlocked:
+    """Only the in-place (file-rewriting) form of sed is blocked."""
 
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "curl file:///etc/passwd",
-            "cat file:///tmp/secret.txt",
-            "xdg-open file:///home/user/doc.pdf",
-            "python3 -c 'open(\"file:///etc/hosts\")'",
-        ],
-    )
-    def test_file_uri_blocked(self, command: str) -> None:
-        assert (
-            block_commands.check_command(command)
-            == "file:// URI (use the built-in Read tool)"
-        )
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "curl https://example.com/file",
-            "ls files/",
-        ],
-    )
-    def test_non_file_uri_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-
-class TestInlineExecutionBlocks:
-    """Block inline code execution for language runtimes."""
-
-    _PY_C = (
-        "python -c (inline execution — use Read/Glob/Grep " "or file a missing test)"
-    )
-    _NODE_E = (
-        "node -e/--eval (inline execution — "
-        "use Read/Glob/Grep or file a missing test)"
-    )
-    _RUBY_E = (
-        "ruby/perl -e (inline execution — use Read/Glob/Grep " "or file a missing test)"
-    )
-    _PHP_R = "php -r (inline execution — use Read/Glob/Grep " "or file a missing test)"
+    _MSG = "sed -i (in-place edit — use the Edit or Write tool)"
 
     @pytest.mark.parametrize(
         "command,expected",
         [
-            ("python -c 'print(1)'", _PY_C),
-            ('python -c "print(1)"', _PY_C),
-            ("python3 -c 'print(1)'", _PY_C),
-            ("pythonw -c 'x'", _PY_C),
-            ("/usr/bin/python3 -c 'x'", _PY_C),
-            ("env python3 -c 'x'", _PY_C),
-            # Even when routed through -m, -c still executes inline code
-            ("python -m mymodule -c 'print(1)'", _PY_C),
-            ("node -e 'console.log(1)'", _NODE_E),
-            ('node -e "console.log(1)"', _NODE_E),
-            ("/usr/bin/node -e 'x'", _NODE_E),
-            ("node --eval 'console.log(1)'", _NODE_E),
-            ('node --eval="console.log(1)"', _NODE_E),
-            ("ruby -e 'puts 1'", _RUBY_E),
-            ("perl -e 'print 1'", _RUBY_E),
-            ("/usr/bin/ruby -e 'x'", _RUBY_E),
-            ("php -r 'echo 1;'", _PHP_R),
-            ('php -r "echo 1;"', _PHP_R),
-        ],
-    )
-    def test_inline_execution_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            # Legit flags that are not inline execution
-            "python -m venv .venv",
-            "python -m http.server 8080",
-            "node --version",
-            "node server.js",
-            "ruby --version",
-            "perl --version",
-            "php --version",
-            # node -c is a syntax check (read-only) and not in our block list
-            "node -c file.js",
-        ],
-    )
-    def test_inline_execution_false_positives_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-    # --- Heredoc to runtime ---
-
-    _HEREDOC = "heredoc to runtime (inline execution — file a missing test instead)"
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("python <<EOF\nprint(1)\nEOF", _HEREDOC),
-            ("python3 <<EOF\nprint(1)\nEOF", _HEREDOC),
-            ("python <<'EOF'\nprint(1)\nEOF", _HEREDOC),
-            ('python <<"EOF"\nprint(1)\nEOF', _HEREDOC),
-            ("bash <<EOF\necho hi\nEOF", _HEREDOC),
-            ("sh <<-EOF\n  echo hi\nEOF", _HEREDOC),
-            ("node <<EOF\nconsole.log(1)\nEOF", _HEREDOC),
-            ("ruby <<EOF\nputs 1\nEOF", _HEREDOC),
-            ("perl <<EOF\nprint 1\nEOF", _HEREDOC),
-            ("php <<EOF\necho 1;\nEOF", _HEREDOC),
-            ("/usr/bin/python3 <<EOF\nprint(1)\nEOF", _HEREDOC),
-        ],
-    )
-    def test_heredoc_to_runtime_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            # Heredoc into a non-runtime: still allowed
-            "cat <<EOF\nhello\nEOF",
-            "tee file.txt <<EOF\nhello\nEOF",
-            # git commit body heredoc (no runtime after <<)
-            "git commit -m \"$(cat <<'EOF'\nmsg body\nEOF\n)\"",
-        ],
-    )
-    def test_heredoc_to_non_runtime_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-    # --- Process substitution to runtime ---
-
-    _PROCSUB = (
-        "process substitution to runtime (inline execution — "
-        "use Read/Glob/Grep or file a missing test)"
-    )
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("python <(echo 'print(1)')", _PROCSUB),
-            ("python3 <(cat foo.py)", _PROCSUB),
-            ("bash <(echo 'ls')", _PROCSUB),
-            ("sh <(echo 'ls')", _PROCSUB),
-            ("node <(cat foo.js)", _PROCSUB),
-            ("ruby <(echo 'puts 1')", _PROCSUB),
-        ],
-    )
-    def test_process_substitution_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    # --- Shell -c wrapping a runtime ---
-
-    _SHELL_WRAP = (
-        "shell -c wrapping runtime (inline execution — "
-        "use Read/Glob/Grep or file a missing test)"
-    )
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("bash -c \"python -c 'print(1)'\"", _SHELL_WRAP),
-            ("bash -c 'python script.py'", _SHELL_WRAP),
-            ('sh -c "python3 -c x"', _SHELL_WRAP),
-            ("sh -c 'node -e x'", _SHELL_WRAP),
-            ("zsh -c 'perl -e x'", _SHELL_WRAP),
-            ("bash -c 'ruby -e x'", _SHELL_WRAP),
-            ("bash -c 'php -r x'", _SHELL_WRAP),
-            ('/bin/bash -c "python foo.py"', _SHELL_WRAP),
-        ],
-    )
-    def test_shell_wrap_runtime_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            # Plain bash -c with a non-runtime command — legit CI/git pattern
-            "bash -c 'git status'",
-            'bash -c "git log --oneline"',
-            "sh -c 'make test'",
-            "bash -c 'echo hello'",
-            "bash -c 'ls -la'",
-        ],
-    )
-    def test_shell_wrap_non_runtime_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-    # --- Arbitrary .py file execution ---
-
-    _ARBITRARY_PY = (
-        "running arbitrary .py file (use Read/Glob/Grep; "
-        "file a missing test if runtime verification is required)"
-    )
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("python script.py", _ARBITRARY_PY),
-            ("python3 explore.py", _ARBITRARY_PY),
-            ("pythonw tool.py", _ARBITRARY_PY),
-            ("python /tmp/explore.py", _ARBITRARY_PY),
-            ("python ./explore.py", _ARBITRARY_PY),
-            ("/usr/bin/python3 foo.py", _ARBITRARY_PY),
-            ("env python3 explore.py", _ARBITRARY_PY),
-            # Paths that look like .claude/ but aren't
-            ("python3 /stupid.claude/evil.py", _ARBITRARY_PY),
-            ("python3 foo.claude/bar.py", _ARBITRARY_PY),
-            # Paths that look like scripts/ but aren't
-            ("python3 myfavscripts/evil.py", _ARBITRARY_PY),
-            ("python3 /tmp/notscripts/foo.py", _ARBITRARY_PY),
-        ],
-    )
-    def test_arbitrary_py_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            # Project scripts and review-skill scripts live under scripts/
-            "python scripts/foo.py",
-            "python3 scripts/block_commands.py",
-            "python ./scripts/helper.py",
-            "python ~/.claude/skills/review/scripts/validate-findings.py file.md",
-            "python ~/.claude/skills/review/scripts/render-review.py",
-            "python /home/user/src/proj/scripts/explore.py",
-            # Skill and hook scripts under .claude/ directories
-            "python3 .claude/skills/gate-assessment/consolidate.py --input-dir foo",
-            "python .claude/hooks/my-hook.py",
-            "python3 /home/user/.claude/skills/review/analyze.py file.md",
-        ],
-    )
-    def test_scripts_path_py_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-
-class TestSedBlocked:
-    """sed must be blocked except for read-only line-range print."""
-
-    _MSG = (
-        "sed (use the built-in Read tool with offset/limit, "
-        "or sed -n '<range>p' for line extraction)"
-    )
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("sed 's/foo/bar/' file.txt", _MSG),
             ("sed -i 's/foo/bar/' file.txt", _MSG),
-            ("sed -e 's/foo/bar/' file.txt", _MSG),
-            ("sed -n 's/foo/bar/p' file.txt", _MSG),
-            ("sed -n '/pattern/p' file.txt", _MSG),
-            ("sed -n '1,6d' file.txt", _MSG),
-            ("sed -n '1,6w output.txt' file.txt", _MSG),
-            ("sed '1,6p' file.txt", _MSG),
-            ("/usr/bin/sed 's/foo/bar/' file.txt", _MSG),
+            ("sed -i.bak 's/foo/bar/' file.txt", _MSG),
+            ("sed --in-place 's/foo/bar/' file.txt", _MSG),
+            ("sed -n -i 's/a/b/' file.txt", _MSG),
             ("sed.exe -i 's/a/b/' file.txt", _MSG),
-            ("env sed 's/x/y/' file.txt", _MSG),
+            ("/usr/bin/sed -i 's/a/b/' file.txt", _MSG),
+            ("env sed -i 's/x/y/' file.txt", _MSG),
         ],
     )
     def test_blocked(self, command: str, expected: str) -> None:
@@ -1449,93 +989,18 @@ class TestSedBlocked:
     @pytest.mark.parametrize(
         "command",
         [
+            # Read-only sed writes nothing, so the Edit tool is not required.
+            "sed 's/foo/bar/' file.txt",
+            "sed -e 's/foo/bar/' file.txt",
             "sed -n '1,6p' file.txt",
-            "sed -n '89,90p' file.txt",
-            "sed -n '5p' file.txt",
-            "sed -n 1,6p file.txt",
-            "sed -n '100,200p' /path/to/file.md",
+            "sed -n '/pattern/p' file.txt",
+            "sed '1,6d' file.txt",
+            # "sed" inside a filename is not the sed command
+            "cat sed-readonly.json",
+            "ls sed.txt",
         ],
     )
-    def test_line_range_print_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "cat file.txt | sed -n '1,6p'",
-            "cat /path/to/file.md | sed -n '89,90p'",
-        ],
-    )
-    def test_piped_line_range_print_allowed(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "git mv foo/sed-readonly.json bar/text-tools.json",
-            "ls sed-readonly.json",
-            "cat path/to/sed-config.yaml",
-        ],
-    )
-    def test_sed_in_filename_not_blocked(self, command: str) -> None:
-        assert block_commands.check_command(command) is None
-
-
-class TestAwkBlocked:
-    """awk must block system() calls and output redirection."""
-
-    _SYSTEM_MSG = (
-        "awk system() (executes shell commands — "
-        "use subprocess or Bash tool directly)"
-    )
-    _REDIR_MSG = (
-        "awk output redirection (writes files from within awk — "
-        "use shell redirection or Write tool instead)"
-    )
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("awk '{system(\"rm \" $1)}' file.txt", _SYSTEM_MSG),
-            ("awk 'BEGIN{system(\"dangerous\")}' file.txt", _SYSTEM_MSG),
-            ("gawk '{system(\"cmd\")}' file.txt", _SYSTEM_MSG),
-            ("mawk '{system(\"cmd\")}' file.txt", _SYSTEM_MSG),
-            ("nawk '{system(\"cmd\")}' file.txt", _SYSTEM_MSG),
-            ("/usr/bin/awk '{system(\"rm\")}' file.txt", _SYSTEM_MSG),
-            ("awk.exe '{system(\"cmd\")}' file.txt", _SYSTEM_MSG),
-            ("env awk '{system(\"cmd\")}' file.txt", _SYSTEM_MSG),
-        ],
-    )
-    def test_system_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
-        "command,expected",
-        [
-            ("awk '{print $1 > \"output.txt\"}' file.txt", _REDIR_MSG),
-            ("awk '{print $1 >> \"output.txt\"}' file.txt", _REDIR_MSG),
-            ("gawk '{print > \"out.txt\"}' file.txt", _REDIR_MSG),
-        ],
-    )
-    def test_output_redirection_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "awk '{print $1}' file.txt",
-            "awk '/pattern/ {print}' file.txt",
-            "awk -F: '{print $1}' /etc/passwd",
-            "awk -F= '{print $2}' config.ini",
-            "awk '/def main/,/^def [a-z_]/ {print NR\": \"$0}' file.py",
-            'awk \'BEGIN {FS = ":.*?## "}; {printf "%-20s %s\\n", $1, $2}\' Makefile',
-            "awk '{print $4}' file.txt",
-            "awk '/ipv4/{print $4}' file.txt",
-            "gawk '{print $1}' file.txt",
-            "mawk '{print $1}' file.txt",
-        ],
-    )
-    def test_read_only_allowed(self, command: str) -> None:
+    def test_allowed(self, command: str) -> None:
         assert block_commands.check_command(command) is None
 
 
@@ -1625,80 +1090,100 @@ class TestCommandChainSplitting:
         assert block_commands.check_command(cmd) is None
 
 
+class TestRelaxedPatternsAllowed:
+    """Commands the guard deliberately stopped blocking.
+
+    These were tool-choice nudges, not mutation protection. A hook exit 2 is
+    a hard block; letting them through defers to the harness permission
+    check, which is the intended behaviour now that sandboxes carry the
+    noisy-agent case.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # Path-policy nags: the subcommand patterns still catch mutations
+            "git -C /abs/path status",
+            "git -C ~/proj log -5",
+            "git --git-dir=/abs/.git status",
+            "make -C /abs/path test",
+            "make -C $(pwd) check",
+            "cd /tmp && ls",
+            "cd sub && git status",
+            # Dedicated-tool steering
+            "find . -name '*.py'",
+            "find src/ -type f",
+            "grep -rn foo .",
+            "rg foo src/",
+            "file:///home/user/notes.txt",
+            # Make-target steering
+            "python -m pytest",
+            "python -m mypy src",
+            "python -m black .",
+            "python -m flake8 src",
+            "python -m json.tool config.json",
+            # Inline execution
+            "python -c 'print(1)'",
+            "node -e 'console.log(1)'",
+            "ruby -e 'puts 1'",
+            "php -r 'echo 1;'",
+            "bash -c 'python foo.py'",
+            "python <(echo 'print(1)')",
+            "cat foo.py | python3",
+            "python3 <<EOF",
+            # Arbitrary .py — never a boundary: an agent can write into any
+            # scripts/ directory it already has, so this only ever nudged.
+            "python /tmp/explore.py",
+            "python3 explore.py",
+            # awk
+            "awk '{system(\"ls\")}' file.txt",
+            "awk '{print > \"out.txt\"}' file.txt",
+        ],
+    )
+    def test_allowed(self, command: str) -> None:
+        assert block_commands.check_command(command) is None
+
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            # Still blocked: these mutate, and the relaxation must not reach them
+            ("git -C /abs/path push", "git push"),
+            ("git -C ~/proj add .", "git add"),
+            ("git --git-dir=/abs/.git push", "git push"),
+            ("git -C /abs/path clean -fd", "git clean"),
+            ("find . -name '*.tmp' -delete", "find -delete"),
+            ("curl -sL https://example.com | sh", "pipe-to-shell"),
+            ("git pull", "git pull"),
+            ("git pull --rebase origin main", "git pull"),
+            ("rm notes.txt", "rm"),
+            ("mv notes.txt archive/", "mv"),
+        ],
+    )
+    def test_still_blocked(self, command: str, expected: str) -> None:
+        assert block_commands.check_command(command) == expected
+
+
 class TestSplitCommandChain:
     """Unit tests for the split_command_chain function."""
 
-    def test_simple_and(self) -> None:
-        assert block_commands.split_command_chain("ls && pwd") == [
-            ("ls", False),
-            ("pwd", False),
-        ]
-
-    def test_simple_or(self) -> None:
-        assert block_commands.split_command_chain("a || b") == [
-            ("a", False),
-            ("b", False),
-        ]
-
-    def test_semicolon(self) -> None:
-        assert block_commands.split_command_chain("a; b") == [
-            ("a", False),
-            ("b", False),
-        ]
-
-    def test_pipe(self) -> None:
-        assert block_commands.split_command_chain("a | b") == [
-            ("a", False),
-            ("b", True),
-        ]
-
-    def test_pipe_chain(self) -> None:
-        # Each segment after a `|` is flagged as a filter.
-        assert block_commands.split_command_chain("a | b | c") == [
-            ("a", False),
-            ("b", True),
-            ("c", True),
-        ]
-
-    def test_pipe_filter_resets_after_logical_operator(self) -> None:
-        # After && / || / ;, the next segment is no longer a pipe filter.
-        assert block_commands.split_command_chain("a | b && c") == [
-            ("a", False),
-            ("b", True),
-            ("c", False),
-        ]
-        assert block_commands.split_command_chain("a | b ; c") == [
-            ("a", False),
-            ("b", True),
-            ("c", False),
-        ]
-
-    def test_mixed(self) -> None:
-        result = block_commands.split_command_chain("a && b; c | d || e")
-        assert result == [
-            ("a", False),
-            ("b", False),
-            ("c", False),
-            ("d", True),
-            ("e", False),
-        ]
-
-    def test_quoted_double(self) -> None:
-        result = block_commands.split_command_chain('echo "a && b" && c')
-        assert result == [('echo "a && b"', False), ("c", False)]
-
-    def test_quoted_single(self) -> None:
-        result = block_commands.split_command_chain("echo 'a | b'; c")
-        assert result == [("echo 'a | b'", False), ("c", False)]
-
-    def test_empty_segments_stripped(self) -> None:
-        result = block_commands.split_command_chain("a &&  && b")
-        assert result == [("a", False), ("b", False)]
-
-    def test_single_command(self) -> None:
-        assert block_commands.split_command_chain("git status") == [
-            ("git status", False)
-        ]
+    @pytest.mark.parametrize(
+        "command,expected",
+        [
+            ("ls && pwd", ["ls", "pwd"]),
+            ("a || b", ["a", "b"]),
+            ("a; b", ["a", "b"]),
+            ("cat f | grep x", ["cat f", "grep x"]),
+            ("a && b | c; d", ["a", "b", "c", "d"]),
+            ("ls", ["ls"]),
+            ("a &&  && b", ["a", "b"]),
+            ("cat a | grep b | wc -l", ["cat a", "grep b", "wc -l"]),
+            # Operators inside quotes are literal text, not separators
+            ("echo 'a && b'", ["echo 'a && b'"]),
+            ('echo "a | b"', ['echo "a | b"']),
+        ],
+    )
+    def test_split(self, command: str, expected: list[str]) -> None:
+        assert block_commands.split_command_chain(command) == expected
 
 
 class TestPresplitPatterns:
@@ -1741,25 +1226,6 @@ class TestPresplitPatterns:
     _GENERIC_PIPE = "pipe to runtime (inline execution — file a missing test instead)"
 
     @pytest.mark.parametrize(
-        "command,expected",
-        [
-            # Non-curl/wget source piped to a runtime — catches agent-authored
-            # stdin-script patterns (cat script | python).
-            ("cat foo.py | python", _GENERIC_PIPE),
-            ("cat foo.py | python3", _GENERIC_PIPE),
-            ("echo 'print(1)' | python", _GENERIC_PIPE),
-            ("cat foo.js | node", _GENERIC_PIPE),
-            ("cat foo.rb | ruby", _GENERIC_PIPE),
-            ("cat foo.pl | perl", _GENERIC_PIPE),
-            ("cat foo.sh | bash", _GENERIC_PIPE),
-            ("echo 'ls' | sh", _GENERIC_PIPE),
-            ("cat foo.php | php", _GENERIC_PIPE),
-        ],
-    )
-    def test_generic_pipe_to_runtime_blocked(self, command: str, expected: str) -> None:
-        assert block_commands.check_command(command) == expected
-
-    @pytest.mark.parametrize(
         "command",
         [
             "curl https://example.com | jq .",
@@ -1771,85 +1237,6 @@ class TestPresplitPatterns:
     )
     def test_pipe_to_non_shell_allowed(self, command: str) -> None:
         assert block_commands.check_command(command) is None
-
-
-class TestCdAndGitBlocked:
-    """Block cd <dir> && git — use git -C <dir> instead."""
-
-    _MSG = "cd && git (use git -C <dir> instead)"
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            "cd /other/repo && git log",
-            "cd ../sibling && git status",
-            "cd ~/source/project && git diff --staged",
-            "cd subdir && git branch -a",
-            "cd /tmp/repo && git rev-parse HEAD",
-        ],
-    )
-    def test_cd_and_git_blocked(self, command: str) -> None:
-        assert block_commands.check_command(command) == self._MSG
-
-    @pytest.mark.parametrize(
-        "command",
-        [
-            # cd && non-git — not blocked by this rule
-            "cd /tmp && ls",
-            # git -C is the correct pattern
-            "git -C /other/repo log",
-            # No cd at all
-            "git diff --staged",
-        ],
-    )
-    def test_cd_without_git_allowed(self, command: str) -> None:
-        result = block_commands.check_command(command)
-        assert result != self._MSG
-
-
-class TestCdToCwd:
-    """Block cd <path> && <cmd> only when path resolves to cwd."""
-
-    _MSG = (
-        "cd to current directory "
-        "(run pwd to check cwd; use absolute paths instead of cd)"
-    )
-
-    @pytest.mark.parametrize(
-        "command,cwd",
-        [
-            # Absolute path matches cwd
-            ("cd /home/user/project && git diff", "/home/user/project"),
-            # Dot resolves to cwd
-            ("cd . && make test", "/tmp/repo"),
-            # Trailing slash on cd target
-            ("cd /tmp/repo/ && git log", "/tmp/repo"),
-            # Leading whitespace
-            ("  cd /tmp/repo && ls", "/tmp/repo"),
-        ],
-    )
-    def test_cd_to_cwd_blocked(self, command: str, cwd: str) -> None:
-        assert block_commands.check_cd_to_cwd(command, cwd) == self._MSG
-
-    @pytest.mark.parametrize(
-        "command,cwd",
-        [
-            # Different directory — allowed
-            ("cd /other/dir && git diff", "/home/user/project"),
-            # Subdirectory — allowed
-            ("cd ./subdir && make test", "/tmp/repo"),
-            # Parent — allowed
-            ("cd .. && ls", "/tmp/repo/sub"),
-            # Standalone cd, no chaining — allowed
-            ("cd /home/user/project", "/home/user/project"),
-            # cd inside quoted string — allowed (not a real cd)
-            ("echo 'cd /tmp && ls'", "/tmp"),
-            # No cd at all
-            ("git diff --staged", "/tmp"),
-        ],
-    )
-    def test_cd_to_different_dir_allowed(self, command: str, cwd: str) -> None:
-        assert block_commands.check_cd_to_cwd(command, cwd) is None
 
 
 class TestGwsGmailBlocked:
