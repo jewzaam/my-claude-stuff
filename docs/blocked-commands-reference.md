@@ -1,6 +1,16 @@
 # Blocked Commands Reference
 
-Complete reference for every blocked pattern in `harness_guards/block_commands.py`.
+Reference for the blocked patterns in `harness_guards/block_commands.py`.
+
+Scope: mutation of things the user did not expect to change. Patterns that
+only steered an agent toward a preferred tool (`find` over Glob, `make` over
+`python -m`, no inline `python -c`) were removed — sandboxes cover the noisy
+agent problem, and a hook exit 2 is a hard block with no prompt, whereas
+letting a command through falls back to the harness permission check. See
+[Relaxed](#relaxed-no-longer-blocked) for what went.
+
+The `gws`, `gh`, semgrep, and package-install families are not tabled below;
+`BLOCKED_PATTERNS` in the module is the authoritative list for those.
 
 ## Git Commands
 
@@ -8,11 +18,12 @@ Complete reference for every blocked pattern in `harness_guards/block_commands.p
 |---------|----------|---------|---------------------|------------------------|------|
 | `git add` | All | `git add\b` | Stages files — user controls staging | None | Sensitive |
 | `git push` | All | `git push\b` | Affects remote state | None | Sensitive |
+| `git pull` | All | `git pull\b` | Rewrites the working tree from a remote; can merge or rebase unexpectedly | `git fetch` | Sensitive |
 | `git reset` | All | `git reset\b` | Loses staged work, can rewrite history | None (even `--soft` blocked) | Sensitive |
 | `git clean` | All | `git clean\b(?!\s+-(n\|--dry-run)\b)` | Deletes untracked files permanently | `git clean -n`, `git clean --dry-run` | Sensitive |
 | `git branch` | All | `git branch\s+.*(?:-[dDmMcC]\b\|--delete\b\|--move\b\|--copy\b)` | Deletes/renames/copies branches | `git branch`, `git branch --list`, `-a`, `-r`, `-v`, `--contains` | Sensitive |
-| `git stash` | All | `git stash\b(?!\s+(?:list\|show)\b)` | Modifies working tree or drops stashed changes | `git stash list`, `git stash show` | Sensitive |
-| `git commit --amend/-a` | All | `git commit\s.*(?:--amend\b\|-[a-zA-Z]*a)` | `--amend` rewrites history, `-a` auto-stages | `git commit -m msg` | Sensitive |
+| `git stash drop/clear` | All | `git stash\s+(?:drop\|clear)\b` | Destroys stashed work irrecoverably | `git stash`, `push`, `pop`, `apply`, `list`, `show` | Sensitive |
+| `git commit --amend` | All | `git commit\s.*--amend\b` | Rewrites history | `git commit -m msg`, `git commit -a` | Sensitive |
 | `git checkout --` | All | `git checkout\s+--\s` | Discards working tree changes permanently | `git checkout branch`, `git checkout -b new` | Sensitive |
 | `git restore` | All | `git restore\b(?!.*--staged)` | Discards working tree changes permanently | `git restore --staged` | Sensitive |
 | `git rebase` | All | `git rebase\b` | Rewrites commit history, can lose work | None | Sensitive |
@@ -32,7 +43,9 @@ Complete reference for every blocked pattern in `harness_guards/block_commands.p
 
 | Command | Platform | Pattern | Destructive Because | Safe Variants (Allowed) | Case |
 |---------|----------|---------|---------------------|------------------------|------|
-| `rm -r` | Unix | `rm\s+.*(-[a-zA-Z]*[rR]\|--recursive)\b` | Recursively deletes directories | `rm file.txt`, `rm -f file.txt` | Sensitive |
+| `rm` | Unix | `(?<!-)\brm(?=\s)` | Unlinks files; one wrong file is not meaningfully safer than a tree | None. `podman run --rm` and `docker run --rm` are not matched (the `(?<!-)` lookbehind) | Sensitive |
+| `mv` | Unix | `(?<!-)\bmv(?=\s)` | Silently clobbers the destination | None | Sensitive |
+| `sed -i` | Unix | `sed\s+.*(?:-[a-zA-Z]*i[a-zA-Z]*\|--in-place)\b` | Rewrites a file in place | All read-only sed: `sed 's/a/b/' f`, `sed -n '1,5p' f` | Sensitive |
 | `find -delete` | Unix | `find\s+.*\s-delete\b` | Deletes files matching criteria without confirmation | `find . -name '*.py'` | Sensitive |
 | `chmod 777` | Unix | `chmod\s+.*\b777\b` | World-writable permissions — security vulnerability | `chmod 755`, `chmod +x` | Sensitive |
 | `shred` | Unix | `shred\s+` | Overwrites file data to prevent recovery — inherently destructive | None | Sensitive |
@@ -110,6 +123,28 @@ Complete reference for every blocked pattern in `harness_guards/block_commands.p
 |---------|----------|---------|---------------------|------------------------|------|
 | `make reconcile` | All | `make\s+reconcile\b` | Deploys scripts to `~/.claude/` — affects live environment | `make test`, `make format` | Sensitive |
 
+## Relaxed (No Longer Blocked)
+
+Removed with the move to a mutation-only threat model. Each now falls through
+to the harness permission check instead of a hard hook block.
+
+| Was blocked | Why it is gone |
+|-------------|----------------|
+| `git -C <abs/parent/home>`, `git --git-dir` | Path policy, not mutation. `git -C /abs push` still blocks on `git push` — the subcommand patterns match through the flags |
+| `make -C <abs/parent/home>` | Same: path policy |
+| `cd <path> && <cmd>` where path == cwd | Style |
+| `cd <dir> && git <subcmd>` | Style |
+| `find` (without `-delete`) | Read-only. `find -delete` still blocks |
+| `grep`, `rg` as a leading command | Read-only |
+| `python -m` pytest/mypy/black/flake8/mutmut | Make-target steering |
+| `python -m json.tool` | jq steering |
+| `python -c`, `node -e`, `ruby/perl -e`, `php -r` | Inline execution steering |
+| `bash -c "python ..."`, `<runtime> <(...)`, `<runtime> <<EOF`, `... \| <runtime>` | Inline execution steering. `curl\|sh` is kept — that is remote code |
+| `python <path>.py` outside `scripts/` | Never a boundary: an agent can write into any `scripts/` directory it already has |
+| `awk system()`, awk output redirection | Reachable through a plain shell anyway |
+| `file://` URI | Still blocked in `block_paths.py` for WebFetch |
+| `sed` (read-only forms) | Narrowed to `sed -i` — see Unix Filesystem above |
+
 ## Google Workspace CLI
 
 The `gws` CLI has 15 blocked patterns covering Gmail, Calendar, Chat, Drive, Sheets, Tasks, Keep, Forms, Docs, Slides, Events, and Meet mutations, plus full-service blocks on Workflow and Classroom. See [gws-cli-blocking.md](gws-cli-blocking.md) for the full reference including threat model, access policy, and security analysis.
@@ -163,6 +198,8 @@ Add a `(compiled_regex, description)` tuple to `BLOCKED_PATH_PATTERNS` in `harne
 |---------|-------------|
 | `git revert` | Non-destructive (creates new commit) |
 | `python -c` / `node -e` | Too broad, breaks legitimate scripting |
+| `>` truncating redirect | Would catch nearly every legitimate redirect |
+| `git fetch`, `git merge`, `git cherry-pick` | Recoverable; `git pull` is blocked as the combined fetch+integrate |
 | `eval` | Too broad, impossible to regex effectively |
 | `dd` (without `of=/dev/`) | Legitimate uses (test files, backups) |
 | `mount` / `umount` | Requires sudo which is already blocked |

@@ -5,32 +5,28 @@
 Reads JSON from stdin with tool_input.command and checks against blocked
 command patterns. Exits 2 to block, 0 to allow.
 
+Scope: mutation of things the user did not expect to change. Patterns that
+only steered an agent toward a preferred tool (use Glob not find, use make
+not python -m, no inline python -c) were removed — sandboxes cover the noisy
+agent problem now, and a hook exit 2 is a hard block with no prompt, whereas
+letting a command through falls back to the harness permission check.
+
 Preprocessing pipeline:
-  1. Check heredoc-to-runtime on raw text (before heredoc stripping)
-  2. Strip heredoc bodies to avoid false positives from string literals
-  3. Normalize backslashes to forward slashes for consistent path matching
-  4. Check presplit patterns (pipe-to-shell) on full text
-  5. Split command chains (&&, ||, ;, |) respecting quoted strings.
-     Each segment is tagged with whether it followed a `|` (pipe filter).
-  6. Check each segment against BLOCKED_PATTERNS, plus LEADING_ONLY_PATTERNS
-     for non-filter segments only (so e.g. `cmd | grep foo` is allowed but
-     bare `grep foo` and `cmd && grep foo` remain blocked)
+  1. Strip heredoc bodies to avoid false positives from string literals
+  2. Normalize backslashes to forward slashes for consistent path matching
+  3. Check presplit patterns (pipe-to-shell) on full text
+  4. Split command chains (&&, ||, ;, |) respecting quoted strings
+  5. Check each segment against BLOCKED_PATTERNS
 
 Blocked categories:
-  Git: -C flag (blocked for absolute/parent/home paths;
-       exceptions: relative subdirectory paths, git-worktrees/ paths,
-       read-only subcommands: status/log/diff),
-       --git-dir / --git-dir= (use -C instead),
-       add, push, reset, clean (except -n),
-       branch (destructive flags only),
-       stash (except list/show), commit --amend/-a, checkout -- (discard),
+  Git: add, push, pull, reset, clean (except -n),
+       branch (destructive flags only), stash drop/clear,
+       commit --amend, checkout -- (discard),
        restore (except --staged), rebase, filter-branch, filter-repo,
        reflog expire, gc --prune=now
-  Make: -C/--directory flag (blocked for absolute/parent/home paths and
-        pwd substitutions like $(pwd), `pwd`, $PWD; subdirectory paths allowed),
-        reconcile
-  Unix: sudo, su, rm -r, find -delete, chmod 777, mkfs,
-        dd of=/dev/, shred, truncate
+  Make: reconcile (deploys to the live ~/.claude)
+  Unix: sudo, su, rm, mv, find -delete, chmod 777, mkfs,
+        dd of=/dev/, shred, truncate, sed -i
   Windows: rd/rmdir /s, del/erase /s, format, diskpart, bcdedit, sc delete,
            cipher /w, Remove-Item -Recurse, reg delete, takeown,
            icacls (grant/deny/remove)
@@ -38,27 +34,8 @@ Blocked categories:
               Stop-Service, Stop-Process
   Publishing: npm publish, twine upload, gem push, cargo publish,
               dotnet nuget push
-  Network: nc/netcat/ncat, scp, rsync, ftp/sftp, telnet, ssh, socat
-  Workflow: cd to cwd — cd <path> && <cmd> where path == cwd (context-aware),
-            cd && git — use git -C instead of cd <dir> && git <subcmd>
-  Cross-platform: curl/wget piped to shell/interpreter (presplit)
-              sh, bash, dash, ksh, csh, tcsh, zsh, fish,
-              python, python3, pythonw, perl, ruby, node
-  Dedicated tools: grep, rg (use built-in Grep tool when searching the
-                   filesystem; allowed as downstream pipe filters, e.g.
-                   `cmd --help | grep foo`), find (use built-in Glob tool)
-  Make targets: python -m pytest/mypy/black/flake8/mutmut (use make targets)
-  JSON validation: python -m json.tool (use jq empty / jq .)
-  Inline execution: python -c, node -e, ruby/perl -e, php -r,
-       pipe-to-runtime (any ``| <runtime>``),
-       heredoc-to-runtime (``<runtime> <<EOF``),
-       process substitution (``<runtime> <(...)``),
-       shell -c wrapping a runtime (``bash -c "python ..."``),
-       arbitrary ``python <path>.py`` outside ``scripts/`` directories
-  Sed: all sed invocations except read-only line-range print
-       (sed -n '<range>p' — use Read tool with offset/limit instead)
-  Awk: system() calls and output redirection inside awk programs
-       (all other awk is inherently read-only and allowed)
+  Network: nc/netcat/ncat, scp, rsync, ftp/sftp, telnet, ssh, socat,
+           curl/wget piped to a shell or interpreter (presplit)
   Package install: pip install, npm install, cargo install, go install
   Semgrep: --autofix/-a/--replacement (mutation), login/logout/publish/
            install-semgrep-pro (state or network egress)
@@ -75,11 +52,8 @@ Blocked categories:
 """
 
 import json
-import os
 import re
-import shlex
 import sys
-from pathlib import Path
 
 # Optional path prefix (Unix and Windows after normalization):
 # /usr/bin/, C:/Windows/System32/, ./bin/, etc.
@@ -104,16 +78,6 @@ _PIPE_SHELLS = (
     r"|perl|ruby|node|php"
 )
 
-# Patterns checked on raw command BEFORE heredoc stripping — needed so
-# `python <<EOF ... EOF` can be detected (heredoc stripping drops the
-# language marker by splitting on `<<`).
-HEREDOC_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (
-        re.compile(rf"{_PATH}(?:{_PIPE_SHELLS}){_EXE}\s*<<-?\s*['\"]?\w+"),
-        "heredoc to runtime (inline execution — file a missing test instead)",
-    ),
-]
-
 # Patterns checked AFTER heredoc stripping but BEFORE chain splitting
 # (they span pipes intentionally).  Ordered so the curl/wget case keeps
 # its historical "pipe-to-shell" message for existing consumers.
@@ -121,15 +85,6 @@ PRESPLIT_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(rf"(?:curl|wget)\b.*\|\s*{_PATH}(?:{_PIPE_SHELLS}){_EXE}\b"),
         "pipe-to-shell",
-    ),
-    (
-        re.compile(rf"\|\s*{_PATH}(?:{_PIPE_SHELLS}){_EXE}\b"),
-        "pipe to runtime (inline execution — file a missing test instead)",
-    ),
-    # cd <dir> && git <subcmd>: use git -C <dir> <subcmd> instead
-    (
-        re.compile(r"\bcd\s+\S+\s*&&\s*" rf"{_ENV}{_PATH}git{_EXE}\b"),
-        "cd && git (use git -C <dir> instead)",
     ),
 ]
 
@@ -140,29 +95,9 @@ _GH_API_GRAPHQL_RE = re.compile(rf"{_ENV}{_PATH}gh{_EXE}\s+api\s+graphql\b")
 _GRAPHQL_MUTATION_RE = re.compile(r"\bmutation\b")
 
 BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    # git -C: block absolute, parent (..), and home (~) paths.
-    # Relative subdirectory paths are allowed (e.g. git -C nexus-ui remote -v).
-    # Exception: git -C <path>/git-worktrees/<worktree>/ is always allowed
-    # Exception: read-only subcommands (status, log, diff) are allowed with any path
-    (
-        re.compile(
-            rf"{_ENV}{_PATH}git{_EXE}\s+-C\s+"
-            r"(?!\S*git-worktrees/)"
-            r"(?!\S+(?:\s+-\S+)*\s+(?:status|log|diff)\b)"
-            r"(?:\.\.|[/~])"
-        ),
-        "git -C (blocked for absolute/parent/home paths"
-        " — subdirectory and worktree paths are allowed)",
-    ),
-    # git --git-dir / --git-dir=: redirect users to git -C, which honors
-    # the worktree/read-only/subdirectory rules above. --git-dir bypasses
-    # those rules and is harder to reason about.
-    (
-        re.compile(rf"{_ENV}{_PATH}git{_EXE}\s+--git-dir(?:=|\s)"),
-        "git --git-dir (use git -C <dir> instead)",
-    ),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+add\b"), "git add"),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+push\b"), "git push"),
+    (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+pull\b"), "git pull"),
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+reset\b"), "git reset"),
     # git clean: block all except -n/--dry-run (safe preview)
     (
@@ -180,12 +115,10 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         ),
         "git branch (destructive)",
     ),
-    # git stash: block all except list/show (read-only)
+    # git stash: only drop/clear destroy work. push/pop/apply are recoverable.
     (
-        re.compile(
-            rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+stash" r"\b(?!\s+(?:list|show)\b)"
-        ),
-        "git stash",
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+stash\s+(?:drop|clear)\b"),
+        "git stash drop/clear",
     ),
     # Git history rewriting
     (re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+rebase\b"), "git rebase"),
@@ -212,31 +145,18 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         re.compile(rf"(?:^|&&|\|\||;|\|)\s*{_ENV}{_PATH}su\s*(?:$|\s|&&|\|\||;|\|)"),
         "su",
     ),
-    (
-        re.compile(
-            rf"{_ENV}{_PATH}\brm{_EXE}\s+.*"
-            r"(?:(?<=\s)-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)\b"
-        ),
-        "rm (recursive)",
-    ),
+    # rm and mv both destroy: rm unlinks, mv silently clobbers the target.
+    # Non-recursive rm is included on purpose — deleting one wrong file is
+    # not meaningfully safer than deleting a tree of them.
+    # `(?<!-)` keeps the container flag out: `podman run --rm`, `docker run --rm`.
+    (re.compile(rf"{_ENV}{_PATH}(?<!-)\brm{_EXE}(?=\s)"), "rm"),
+    (re.compile(rf"{_ENV}{_PATH}(?<!-)\bmv{_EXE}(?=\s)"), "mv"),
     (re.compile(rf"{_ENV}{_PATH}make{_EXE}{_FLAGS}\s+reconcile\b"), "make reconcile"),
-    # make -C / --directory: block absolute, parent (..), home (~) paths,
-    # and pwd substitutions ($(pwd), `pwd`, $PWD, ${PWD}).
-    # Relative subdirectory paths are allowed (e.g. make -C nexus-ui test).
+    # git commit --amend rewrites history. `-a` only stages tracked files —
+    # `git add` (above) is what guards deliberate staging.
     (
-        re.compile(
-            rf"{_ENV}{_PATH}make{_EXE}\s+(?:-C\s+|--directory=)"
-            r"(?:\.\.|[/~]|\$\(pwd\)|`pwd`|\$\{?PWD\}?)"
-        ),
-        "make -C/--directory (blocked for absolute/parent/home paths and pwd"
-        " substitutions — omit -C if you mean cwd; subdirectory paths are allowed)",
-    ),
-    (
-        re.compile(
-            rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+commit\s.*"
-            rf"(?:--amend\b|(?<=\s)-[a-zA-Z]*a[a-zA-Z]*)(?:\s|$)"
-        ),
-        "git commit (--amend/-a)",
+        re.compile(rf"{_ENV}{_PATH}git{_EXE}{_FLAGS}\s+commit\s.*--amend\b"),
+        "git commit --amend",
     ),
     # git checkout -- <files> (discard working tree changes)
     (
@@ -317,123 +237,13 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # PowerShell process/service cmdlets
     (re.compile(r"\bStop-Service\b", re.IGNORECASE), "Stop-Service"),
     (re.compile(r"\bStop-Process\b", re.IGNORECASE), "Stop-Process"),
-    # file:// URI scheme — agents should use the Read tool for local files
-    (re.compile(r"\bfile://"), "file:// URI (use the built-in Read tool)"),
-    # Dedicated tools: block Bash find — use built-in Glob tool.
-    # grep/rg are in LEADING_ONLY_PATTERNS because they are still useful as
-    # downstream filters on another command's stdout (the built-in Grep tool
-    # only searches files, not piped input).
-    (
-        re.compile(rf"^{_ENV}{_PATH}(?<!-)find{_EXE}\b"),
-        "find (use the built-in Glob tool)",
-    ),
-    # Make targets: block direct python -m invocations that have make equivalents
-    (
-        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+pytest\b"),
-        "python -m pytest (use make test or make coverage)",
-    ),
-    (
-        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+mypy\b"),
-        "python -m mypy (use make typecheck)",
-    ),
-    (
-        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+black\b"),
-        "python -m black (use make format)",
-    ),
-    (
-        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+flake8\b"),
-        "python -m flake8 (use make lint)",
-    ),
-    (
-        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+mutmut\b"),
-        "python -m mutmut (use make mutation-test)",
-    ),
-    # JSON validation: block python's json.tool — use jq instead
-    (
-        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+-m\s+json\.tool\b"),
-        "python -m json.tool "
-        "(use 'jq empty <file>' to validate or 'jq . <file>' to pretty-print)",
-    ),
-    # Shell -c wrapping a runtime: bash -c "python ...", sh -c 'node ...'
-    # Must come BEFORE individual inline-execution patterns so the outer
-    # wrapper is identified rather than the inner `-c`/`-e`.
-    # Plain shell -c with non-runtime commands (git, CI scripts) is allowed.
+    # sed -i / --in-place rewrites the file. Read-only sed is allowed.
     (
         re.compile(
-            rf"{_ENV}{_PATH}(?:ba|da|k|c|tc|z|fi)?sh{_EXE}\s+-c\s+"
-            r"['\"]?\s*"
-            rf"{_PATH}(?:python[3w]?|node|perl|ruby|php)\b"
+            rf"{_ENV}{_PATH}sed{_EXE}\s+.*"
+            r"(?:(?<=\s)-[a-zA-Z]*i[a-zA-Z]*|--in-place)\b"
         ),
-        "shell -c wrapping runtime (inline execution — "
-        "use Read/Glob/Grep or file a missing test)",
-    ),
-    # Inline code execution (python -c / -m...-c, node -e, ruby/perl -e, php -r)
-    # Use Read/Glob/Grep to inspect files; file missing tests for runtime checks.
-    (
-        re.compile(rf"{_ENV}{_PATH}python[3w]?{_EXE}\b[^|;&]*\s-c\b"),
-        "python -c (inline execution — use Read/Glob/Grep or file a missing test)",
-    ),
-    (
-        re.compile(rf"{_ENV}{_PATH}node{_EXE}\b[^|;&]*\s(?:-e|--eval)\b"),
-        "node -e/--eval (inline execution — "
-        "use Read/Glob/Grep or file a missing test)",
-    ),
-    (
-        re.compile(rf"{_ENV}{_PATH}(?:ruby|perl){_EXE}\b[^|;&]*\s-e\b"),
-        "ruby/perl -e (inline execution — use Read/Glob/Grep "
-        "or file a missing test)",
-    ),
-    (
-        re.compile(rf"{_ENV}{_PATH}php{_EXE}\b[^|;&]*\s-r\b"),
-        "php -r (inline execution — use Read/Glob/Grep or file a missing test)",
-    ),
-    # Process substitution to runtime: python <(...), bash <(...), etc.
-    (
-        re.compile(rf"{_ENV}{_PATH}(?:{_PIPE_SHELLS}){_EXE}\s+<\("),
-        "process substitution to runtime (inline execution — "
-        "use Read/Glob/Grep or file a missing test)",
-    ),
-    # Running arbitrary .py files — usually agent-authored "explore" scripts.
-    # Allowed when the path contains 'scripts/' or '.claude/' (skill and
-    # hook scripts live under .claude/ and project code under scripts/).
-    (
-        re.compile(
-            rf"{_ENV}{_PATH}python[3w]?{_EXE}\s+"
-            r"(?!-)"
-            r"(?!(?:scripts/|\S*[/~]scripts/))"
-            r"(?!(?:\.claude/|\S*[/~]\.claude/))"
-            r"\S+\.py\b"
-        ),
-        "running arbitrary .py file (use Read/Glob/Grep; "
-        "file a missing test if runtime verification is required)",
-    ),
-    # sed: block all except read-only line-range print (sed -n '<range>p')
-    # Require \s after sed to avoid matching "sed" in filenames (e.g. sed-readonly.json)
-    (
-        re.compile(
-            rf"{_ENV}{_PATH}sed{_EXE}(?=\s)"
-            r"(?!\s+-n\s+['\"]?\d+(?:,\d+)?p['\"]?(?:\s|\Z))"
-        ),
-        "sed (use the built-in Read tool with offset/limit, "
-        "or sed -n '<range>p' for line extraction)",
-    ),
-    # awk: block system() calls (command execution from within awk)
-    (
-        re.compile(
-            rf"{_ENV}{_PATH}(?:g?awk|mawk|nawk){_EXE}\b"
-            r".*['\"][^'\"]*\bsystem\s*\([^'\"]*['\"]"
-        ),
-        "awk system() (executes shell commands — "
-        "use subprocess or Bash tool directly)",
-    ),
-    # awk: block output redirection inside awk program (writes files)
-    (
-        re.compile(
-            rf"{_ENV}{_PATH}(?:g?awk|mawk|nawk){_EXE}\b"
-            r".*['\"][^'\"]*>(?!&)[^'\"]*['\"]"
-        ),
-        "awk output redirection (writes files from within awk — "
-        "use shell redirection or Write tool instead)",
+        "sed -i (in-place edit — use the Edit or Write tool)",
     ),
     # Package installation against the user's environment
     (
@@ -728,41 +538,17 @@ BLOCKED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     ),
 ]
 
-# Patterns that block only the LEADING command of a chain segment.  Skipped
-# when the segment is a downstream pipe filter (the segment after a `|`),
-# since those tools are still legitimate as filters on another command's
-# stdout — the built-in Grep tool can't operate on piped input.
-# Negative lookbehind `(?<!-)` excludes flag-style uses like `git log --grep=`.
-LEADING_ONLY_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (
-        re.compile(rf"{_ENV}{_PATH}(?<!-)grep{_EXE}\b"),
-        "grep (use the built-in Grep tool, or pipe another command's output"
-        " through grep — `cmd | grep foo`)",
-    ),
-    (
-        re.compile(rf"{_ENV}{_PATH}(?<!-)rg{_EXE}\b"),
-        "rg (use the built-in Grep tool, or pipe another command's output"
-        " through rg — `cmd | rg foo`)",
-    ),
-]
 
-
-def split_command_chain(command: str) -> list[tuple[str, bool]]:
+def split_command_chain(command: str) -> list[str]:
     """Split on &&, ||, ;, | respecting quoted strings.
 
     Character-by-character parser tracking single/double quote state.
-    Returns stripped non-empty segments paired with an ``is_pipe_filter``
-    flag — True when the segment was produced by a ``|`` split (i.e. it
-    consumes another command's stdout).  Segments produced by ``&&``,
-    ``||``, ``;`` or as the first segment have the flag set to False.
+    Returns stripped non-empty segments.
     """
-    segments: list[tuple[str, bool]] = []
+    segments: list[str] = []
     current: list[str] = []
     in_single = False
     in_double = False
-    # Whether the segment currently being accumulated was preceded by `|`.
-    # The first segment has no preceding operator, so it is not a filter.
-    pending_is_filter = False
     i = 0
     length = len(command)
 
@@ -794,18 +580,16 @@ def split_command_chain(command: str) -> list[tuple[str, bool]]:
             if i + 1 < length and command[i : i + 2] in ("&&", "||"):
                 segment = "".join(current).strip()
                 if segment:
-                    segments.append((segment, pending_is_filter))
+                    segments.append(segment)
                 current = []
-                pending_is_filter = False
                 i += 2
                 continue
             # Check for ; or |
             if ch in (";", "|"):
                 segment = "".join(current).strip()
                 if segment:
-                    segments.append((segment, pending_is_filter))
+                    segments.append(segment)
                 current = []
-                pending_is_filter = ch == "|"
                 i += 1
                 continue
 
@@ -815,7 +599,7 @@ def split_command_chain(command: str) -> list[tuple[str, bool]]:
     # Final segment
     segment = "".join(current).strip()
     if segment:
-        segments.append((segment, pending_is_filter))
+        segments.append(segment)
 
     return segments
 
@@ -824,34 +608,23 @@ def check_command(command: str) -> str | None:
     """Return the blocked command name if matched, or None if allowed.
 
     Pipeline:
-      1. Check heredoc-to-runtime on raw text (before stripping — the
-         language marker sits before `<<` and would otherwise survive,
-         but the ``<<`` itself is needed to recognise the heredoc form)
-      2. Strip heredoc body to avoid false positives from string literals
-      3. Normalize backslashes to forward slashes for consistent path matching
-      4. Check presplit patterns on full text (pipe-to-shell detection)
-      5. Split command chains respecting quoted strings (each segment
-         tagged with whether it followed a `|`)
-      6. Check each segment against BLOCKED_PATTERNS, plus
-         LEADING_ONLY_PATTERNS for non-filter (non-pipe-downstream) segments
+      1. Strip heredoc body to avoid false positives from string literals
+      2. Normalize backslashes to forward slashes for consistent path matching
+      3. Check presplit patterns on full text (pipe-to-shell detection)
+      4. Split command chains respecting quoted strings
+      5. Check each segment against BLOCKED_PATTERNS
     """
-    # 1. Heredoc-to-runtime check on raw command (before heredoc stripping)
-    raw_normalized = command.replace("\\", "/")
-    for pattern, name in HEREDOC_PATTERNS:
-        if pattern.search(raw_normalized):
-            return name
-
-    # 2. Strip heredoc body
+    # 1. Strip heredoc body
     check_text = command.split("<<")[0] if "<<" in command else command
-    # 3. Normalize backslashes to forward slashes
+    # 2. Normalize backslashes to forward slashes
     check_text = check_text.replace("\\", "/")
 
-    # 4. Check presplit patterns (span pipes intentionally)
+    # 3. Check presplit patterns (span pipes intentionally)
     for pattern, name in PRESPLIT_PATTERNS:
         if pattern.search(check_text):
             return name
 
-    # 4b. GraphQL query exception: gh api graphql with -f/-F flags is only
+    # 3b. GraphQL query exception: gh api graphql with -f/-F flags is only
     # mutating if the query contains a 'mutation' operation.  Query operations
     # (explicit 'query' keyword or shorthand '{...}') are read-only.
     if _GH_API_GRAPHQL_RE.search(check_text):
@@ -859,57 +632,14 @@ def check_command(command: str) -> str | None:
             return "gh api (mutation)"
         return None
 
-    # 5. Split into chain segments (each tagged with is_pipe_filter)
+    # 4. Split into chain segments
     segments = split_command_chain(check_text)
 
-    # 6. Check each segment against blocked patterns
-    for segment, is_filter in segments:
+    # 5. Check each segment against blocked patterns
+    for segment in segments:
         for pattern, name in BLOCKED_PATTERNS:
             if pattern.search(segment):
                 return name
-        if not is_filter:
-            for pattern, name in LEADING_ONLY_PATTERNS:
-                if pattern.search(segment):
-                    return name
-    return None
-
-
-def check_cd_to_cwd(command: str, cwd: str) -> str | None:
-    """Block ``cd <path> && <cmd>`` when <path> resolves to cwd.
-
-    Only blocks redundant cd — when the target directory is already the
-    caller's working directory.  cd to a *different* directory is not blocked.
-    """
-    check_text = command.split("<<")[0] if "<<" in command else command
-    check_text = check_text.replace("\\", "/")
-
-    m = re.match(r"^\s*cd\s+(.*?)\s*&&", check_text)
-    if not m:
-        return None
-
-    raw_path = m.group(1).strip()
-    if not raw_path:
-        return None
-
-    try:
-        tokens = shlex.split(raw_path)
-    except ValueError:
-        tokens = raw_path.split()
-    if not tokens:
-        return None
-
-    cd_target = tokens[0]
-    p = Path(os.path.expandvars(cd_target)).expanduser()
-    if not p.is_absolute():
-        p = Path(cwd) / p
-    resolved = p.resolve().as_posix()
-    cwd_resolved = Path(cwd).resolve().as_posix()
-
-    if resolved == cwd_resolved:
-        return (
-            "cd to current directory "
-            "(run pwd to check cwd; use absolute paths instead of cd)"
-        )
     return None
 
 
@@ -953,13 +683,6 @@ def main() -> None:
     command = extract_command(data.get("tool_input", {})) or extract_command(data)
     if not command:
         return
-
-    cwd = data.get("cwd", ".")
-
-    cd_blocked = check_cd_to_cwd(command, cwd)
-    if cd_blocked:
-        print(f"BLOCKED: {cd_blocked}", file=sys.stderr)
-        sys.exit(2)
 
     blocked = check_command(command)
     if blocked:
