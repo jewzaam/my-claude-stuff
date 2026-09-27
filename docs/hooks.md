@@ -31,7 +31,8 @@ name, because Codex does not call its exec tool `Bash`.
 
 The modules must be importable by whatever `python3` the harness runs. If they
 are not, `python3 -m` exits 1 — a hook error, not a block — and the guards are
-simply off.
+simply off. `make reconcile` installs the package into that interpreter
+(`py -3` on Windows) before rewriting settings.json.
 
 ### Third-party hooks
 
