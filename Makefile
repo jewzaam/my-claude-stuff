@@ -8,10 +8,14 @@ VENV_DIR ?= .venv
 # that the shell interprets as escape characters. See ~/source/standards/python/shared-venv.md.
 HOME_DIR := $(subst \,/,$(HOME))
 DATA_DIR := $(HOME_DIR)/.claude/my-claude-stuff-data
+# HOOK_PY is the interpreter hooks run under; must match _adapt_python_command
+# in scripts/reconcile.py, which rewrites `python3 ` to `py -3 ` on Windows.
 ifeq ($(OS),Windows_NT)
     PYTHON ?= $(VENV_DIR)/Scripts/python.exe
+    HOOK_PY ?= py -3
 else
     PYTHON ?= $(VENV_DIR)/bin/python
+    HOOK_PY ?= python3
 endif
 
 # Interpreter used to bootstrap the venv. CI overrides to `python` so the
@@ -80,8 +84,9 @@ migrate:  ## Merge legacy data dirs into my-claude-stuff-data/
 		fi; \
 	done
 
-reconcile: migrate  ## Push claude/ config to ~/.claude/
-	$(PYTHON) scripts/reconcile.py claude/ $(HOME_DIR)/.claude/
+reconcile: migrate  ## Install guards into hook interpreter, push claude/ config to ~/.claude/
+	$(HOOK_PY) -m pip install --user .
+	$(HOOK_PY) scripts/reconcile.py claude/ $(HOME_DIR)/.claude/
 
 help:  ## Show this help message
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
