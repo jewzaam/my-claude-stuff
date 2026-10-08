@@ -7,8 +7,7 @@
 - **`rm` and `mv` are blocked** — any form, not just `rm -r`. Ask rather than delete or move. `podman run --rm` / `docker run --rm` are unaffected
 - **`sed -i` is blocked** — use Edit or Write. Read-only `sed` is fine
 - **`git -C` and `make -C` take any path** — the mutating git subcommands are blocked on their own, so `git -C <anywhere> status` is fine and `git -C <anywhere> push` still stops
-- **No commits to default branches** unless told
-- **Work on fork/feature branches** or current branch if specified
+- **Work in the current branch** — user creates and manages branches; never create or switch branches. All commits are user-initiated
 - **Never destructive data ops** (wipe DB, drop tables, destructive migrations) without user approval
 - **Worktree isolation** — session in git worktree stays there. No read/operate on main/parent directory unless user requests
 
