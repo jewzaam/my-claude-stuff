@@ -36,6 +36,31 @@ Quota labels show time remaining until the limit resets, with at most 2 units of
 
 Quota data is cached for 2 minutes. On API failure (429/error), stale cache is used and the freshness indicator shows `!`.
 
+## Refresh a provider model list
+
+`scripts/refresh_models.py` fills `modelPicker.options` in `~/.claude/settings.json`
+from a provider's `/v1/models` endpoint. It reads the provider from
+`ANTHROPIC_BASE_URL` and the credential from `ANTHROPIC_API_KEY` (sent as
+`x-api-key`) or `ANTHROPIC_AUTH_TOKEN` (sent as `Authorization: Bearer`).
+Only one credential header is sent. Use `--auth api-key|bearer` when an
+explicit `--token` needs the other header:
+
+```bash
+python3 scripts/refresh_models.py
+```
+
+Rows use the provider's `display_name` when it differs from the ID; otherwise
+the label is generated from the ID. Claude models are excluded by default
+because Claude Code ships them; pass `--include-anthropic` to keep them. Only
+the highest version of each model class is kept: the class is everything before
+the first digit, and the version is compared component-by-component,
+numerically for numeric components and lexicographically otherwise. Existing
+options are replaced; other settings keys are preserved. Use `--url` or
+`--token` to override the environment, `--description` to label every row,
+`--settings FILE` for another file, `--output FILE` to write a standalone
+`modelPicker` fragment instead of updating settings, and `--dry-run` to inspect
+the result first.
+
 ## Deployment
 
 Scripts run from `~/.claude/my-claude-stuff/scripts/`, not from this repo directly. This prevents untested changes from executing immediately.
