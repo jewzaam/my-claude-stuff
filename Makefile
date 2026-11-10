@@ -1,4 +1,4 @@
-.PHONY: install install-dev install-no-deps uninstall clean format test-format test-lint test-typecheck test-unit test-verbose test-coverage check help migrate reconcile
+.PHONY: install install-dev install-no-deps uninstall clean format test-format test-lint test-typecheck test-unit test-verbose test-coverage check help migrate reconcile deny-anthropic-models allow-anthropic-models
 
 MAKEFLAGS += --no-print-directory
 .DEFAULT_GOAL := check
@@ -87,6 +87,17 @@ migrate:  ## Merge legacy data dirs into my-claude-stuff-data/
 reconcile: migrate  ## Install guards into hook interpreter, push claude/ config to ~/.claude/
 	$(HOOK_PY) -m pip install --user .
 	$(HOOK_PY) scripts/reconcile.py claude/ $(HOME_DIR)/.claude/
+
+# Machine-global by design: these write root-owned files outside the home dir,
+# so they are never part of reconcile. Validate before sudo and skip the write
+# when the installed copy already matches.
+deny-anthropic-models:  ## Block Anthropic model families system-wide (sudo)
+	@jq -e '.deniedModels | length > 0' claude/managed-settings.json >/dev/null
+	@cmp -s claude/managed-settings.json /etc/claude-code/managed-settings.json || \
+		sudo install -Dm644 claude/managed-settings.json /etc/claude-code/managed-settings.json
+
+allow-anthropic-models:  ## Remove the system-wide Anthropic model block (sudo)
+	sudo rm -f /etc/claude-code/managed-settings.json
 
 help:  ## Show this help message
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'

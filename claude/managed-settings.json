@@ -1,0 +1,8 @@
+{
+  "deniedModels": [
+    "fable",
+    "haiku",
+    "opus",
+    "sonnet"
+  ]
+}

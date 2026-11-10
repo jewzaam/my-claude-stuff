@@ -61,6 +61,26 @@ options are replaced; other settings keys are preserved. Use `--url` or
 `modelPicker` fragment instead of updating settings, and `--dry-run` to inspect
 the result first.
 
+## Model configuration
+
+Model access is restricted by a denylist, which is honored only in managed settings. Managed settings apply system-wide and cannot be overridden by user settings. `claude/managed-settings.json` defines `deniedModels`:
+
+```json
+{
+  "deniedModels": ["fable", "haiku", "opus", "sonnet"]
+}
+```
+
+`make deny-anthropic-models` installs the file to `/etc/claude-code/managed-settings.json` via `sudo`. It validates the file with `jq` and skips the write when the installed copy is unchanged; expect a sudo password prompt. `make allow-anthropic-models` removes it. Neither runs as part of `make reconcile`.
+
+### Removing the denylist
+
+`make allow-anthropic-models` removes the managed settings file as root. The equivalent by hand:
+
+```bash
+sudo rm /etc/claude-code/managed-settings.json
+```
+
 ## Deployment
 
 Scripts run from `~/.claude/my-claude-stuff/scripts/`, not from this repo directly. This prevents untested changes from executing immediately.
