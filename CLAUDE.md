@@ -23,11 +23,14 @@ Claude Code configuration management repo. The `claude/` directory is the source
   each registered module through `-m` for that reason.
 - `claude/` — source-of-truth config deployed to `~/.claude/` via `make reconcile`
 - `claude/settings.json.d/` — global Claude Code settings fragments (hooks, permissions, plugins)
+- `claude/managed-settings.json` — Claude Code managed settings. Holds `deniedModels` (family aliases); there is no `availableModels` allowlist. Installed to `/etc/claude-code/managed-settings.json` by `make deny-anthropic-models`, never by `make reconcile` — whether to block models is a per-machine decision. The target validates with `jq -e '.deniedModels | length > 0'` before sudo, skips the write when `cmp` shows the installed copy matches, then runs `sudo install -Dm644`. `make allow-anthropic-models` removes the file.
+- `deniedModels` is honored only from managed settings — it is ignored, with a warning, in user, project, local, and `--settings` files. Requires Claude Code v2.1.283+. Without an `availableModels` allowlist every non-denied model stays selectable, so the denylist is the only block.
 - `tests/` — pytest tests with conftest.py guards that block writes to real `~/.claude/`
 
 ## Restricted Operations
 
 - **`make reconcile` is USER ONLY** — never run it. It deploys scripts and config to `~/.claude/` which affects the live Claude Code environment. Only the user decides when to deploy.
+- **`make deny-anthropic-models` and `make allow-anthropic-models` are USER ONLY** — both edit `/etc/claude-code/managed-settings.json` and prompt for sudo.
 
 ## ai-guardian Config
 
